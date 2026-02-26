@@ -3,30 +3,32 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, HTTPException
+from fastapi import status as http_status
 
 from dependencies import get_book_service
-from models.book import BookStatus
-from schemas.book import BookCreate, BookResponse, SortField, SortOrder
+from models.book import BookStatus, SortField, SortOrder
+from schemas.book import BookCreate, BookResponse
 from services.book_service import BookService
+from services.exceptions import BookNotFoundError
 
 router = APIRouter(prefix="/books", tags=["books"])
 
 
-@router.get("/", response_model=list[BookResponse], status_code=status.HTTP_200_OK)
+@router.get("/", response_model=list[BookResponse], status_code=http_status.HTTP_200_OK)
 async def get_books(
     service: Annotated[BookService, Depends(get_book_service)],
-    filter_status: Annotated[BookStatus | None, Query(alias="status")] = None,
-    filter_author: Annotated[str | None, Query(alias="author")] = None,
-    sort_by: Annotated[SortField | None, Query()] = None,
-    order: Annotated[SortOrder, Query()] = SortOrder.ASC,
+    status: BookStatus | None = None,
+    author: str | None = None,
+    sort_by: SortField | None = None,
+    order: SortOrder = SortOrder.ASC,
 ) -> list[BookResponse]:
     """Return all books, optionally filtered and sorted.
 
     Args:
         service: Injected BookService.
-        filter_status: Optional status filter.
-        filter_author: Optional author substring filter (case-insensitive).
+        status: Optional status filter.
+        author: Optional exact author filter.
         sort_by: Field to sort results by.
         order: Sort direction (asc or desc).
 
@@ -34,14 +36,14 @@ async def get_books(
         A list of BookResponse objects.
     """
     return await service.get_books(
-        filter_status=filter_status,
-        filter_author=filter_author,
+        filter_status=status,
+        filter_author=author,
         sort_by=sort_by,
         order=order,
     )
 
 
-@router.get("/{book_id}", response_model=BookResponse, status_code=status.HTTP_200_OK)
+@router.get("/{book_id}", response_model=BookResponse, status_code=http_status.HTTP_200_OK)
 async def get_book(
     book_id: UUID,
     service: Annotated[BookService, Depends(get_book_service)],
@@ -58,10 +60,16 @@ async def get_book(
     Raises:
         HTTPException: 404 if the book does not exist.
     """
-    return await service.get_book(book_id)
+    try:
+        return await service.get_book(book_id)
+    except BookNotFoundError as exc:
+        raise HTTPException(
+            status_code=http_status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
 
 
-@router.post("/", response_model=BookResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=BookResponse, status_code=http_status.HTTP_201_CREATED)
 async def create_book(
     payload: BookCreate,
     service: Annotated[BookService, Depends(get_book_service)],
@@ -78,7 +86,7 @@ async def create_book(
     return await service.create_book(payload)
 
 
-@router.delete("/{book_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{book_id}", status_code=http_status.HTTP_204_NO_CONTENT)
 async def delete_book(
     book_id: UUID,
     service: Annotated[BookService, Depends(get_book_service)],

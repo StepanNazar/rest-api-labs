@@ -1,25 +1,12 @@
 """Pydantic schemas for request validation and response serialization."""
 
-from enum import StrEnum
 from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from models.book import BookStatus
+from models.book import BookStatus, SortField, SortOrder
 
-
-class SortField(StrEnum):
-    """Fields by which books can be sorted."""
-
-    TITLE = "title"
-    YEAR = "year"
-
-
-class SortOrder(StrEnum):
-    """Direction of sorting."""
-
-    ASC = "asc"
-    DESC = "desc"
+__all__ = ["BookCreate", "BookResponse", "SortField", "SortOrder"]
 
 
 class BookCreate(BaseModel):
@@ -30,14 +17,14 @@ class BookCreate(BaseModel):
         author: The author of the book.
         description: A short description of the book.
         status: Current availability status.
-        year: Publication year, must be between 1000 and 2100.
+        publication_year: Year the book was published.
     """
 
     title: str = Field(min_length=1, max_length=300)
     author: str = Field(min_length=1, max_length=200)
     description: str = Field(min_length=0, max_length=2000, default="")
     status: BookStatus
-    year: int = Field(ge=1000, le=2100)
+    publication_year: int
 
 
 class BookResponse(BaseModel):
@@ -49,7 +36,7 @@ class BookResponse(BaseModel):
         author: The author of the book.
         description: A short description of the book.
         status: Current availability status.
-        year: Publication year.
+        publication_year: Year the book was published.
     """
 
     id: UUID
@@ -57,6 +44,6 @@ class BookResponse(BaseModel):
     author: str
     description: str
     status: BookStatus
-    year: int
+    publication_year: int
 
     model_config = {"from_attributes": True}

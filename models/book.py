@@ -1,7 +1,7 @@
-"""Book domain model and status enumeration."""
+"""Book domain model, status and query enumerations."""
 
+from dataclasses import dataclass
 from enum import StrEnum
-from typing import TypedDict
 from uuid import UUID
 
 
@@ -12,7 +12,22 @@ class BookStatus(StrEnum):
     ISSUED = "issued"
 
 
-class Book(TypedDict):
+class SortField(StrEnum):
+    """Fields by which books can be sorted."""
+
+    TITLE = "title"
+    YEAR = "year"
+
+
+class SortOrder(StrEnum):
+    """Direction of sorting."""
+
+    ASC = "asc"
+    DESC = "desc"
+
+
+@dataclass
+class Book:
     """In-memory representation of a library book."""
 
     id: UUID
@@ -20,4 +35,4 @@ class Book(TypedDict):
     author: str
     description: str
     status: BookStatus
-    year: int
+    publication_year: int

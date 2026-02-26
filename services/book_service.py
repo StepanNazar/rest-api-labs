@@ -2,11 +2,10 @@
 
 from uuid import UUID, uuid4
 
-from fastapi import HTTPException, status
-
-from models.book import Book, BookStatus
+from models.book import Book, BookStatus, SortField, SortOrder
 from repository.book_repository import BookRepository
-from schemas.book import BookCreate, BookResponse, SortField, SortOrder
+from schemas.book import BookCreate, BookResponse
+from services.exceptions import BookNotFoundError
 
 
 class BookService:
@@ -27,28 +26,20 @@ class BookService:
 
         Args:
             filter_status: When provided, only books with this status are returned.
-            filter_author: When provided, only books whose author contains this
-                string (case-insensitive) are returned.
+            filter_author: When provided, only books whose author exactly matches are returned.
             sort_by: Field to sort results by (title or year).
             order: Sort direction, ascending by default.
 
         Returns:
             A list of BookResponse objects matching the given criteria.
         """
-        books: list[Book] = self._repository.get_all()
-
-        if filter_status is not None:
-            books = [b for b in books if b["status"] == filter_status]
-
-        if filter_author is not None:
-            books = [b for b in books if filter_author.lower() in b["author"].lower()]
-
-        if sort_by is not None:
-            reverse = order == SortOrder.DESC
-            sort_key = sort_by.value
-            books = sorted(books, key=lambda b: b[sort_key], reverse=reverse)  # type: ignore[literal-required]
-
-        return [BookResponse(**b) for b in books]
+        books = self._repository.get_all(
+            filter_status=filter_status,
+            filter_author=filter_author,
+            sort_by=sort_by,
+            order=order,
+        )
+        return [BookResponse.model_validate(b) for b in books]
 
     async def get_book(self, book_id: UUID) -> BookResponse:
         """Retrieve a single book by its ID.
@@ -60,15 +51,12 @@ class BookService:
             The BookResponse for the requested book.
 
         Raises:
-            HTTPException: 404 if no book with the given ID exists.
+            BookNotFoundError: If no book with the given ID exists.
         """
         book = self._repository.get_by_id(book_id)
         if book is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Book with id {book_id} not found",
-            )
-        return BookResponse(**book)
+            raise BookNotFoundError(book_id)
+        return BookResponse.model_validate(book)
 
     async def create_book(self, data: BookCreate) -> BookResponse:
         """Create and persist a new book with an auto-generated UUID.
@@ -79,16 +67,16 @@ class BookService:
         Returns:
             The BookResponse of the newly created book.
         """
-        book: Book = {
-            "id": uuid4(),
-            "title": data.title,
-            "author": data.author,
-            "description": data.description,
-            "status": data.status,
-            "year": data.year,
-        }
+        book = Book(
+            id=uuid4(),
+            title=data.title,
+            author=data.author,
+            description=data.description,
+            status=data.status,
+            publication_year=data.publication_year,
+        )
         saved = self._repository.add(book)
-        return BookResponse(**saved)
+        return BookResponse.model_validate(saved)
 
     async def delete_book(self, book_id: UUID) -> None:
         """Delete a book by ID; silently succeeds if the book does not exist.
