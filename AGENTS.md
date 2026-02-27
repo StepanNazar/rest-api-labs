@@ -53,7 +53,7 @@ A **Library REST API** built with FastAPI. Manages the `Book` entity with in-mem
 
 - **models/** — Pure domain types. No framework dependencies. `SortField`/`SortOrder` enums live here because they describe domain query capabilities.
 - **schemas/** — Pydantic models for API request validation and JSON serialization only.
-- **repository/** — All data access and querying logic (filtering, sorting). No HTTP knowledge.
+- **repository/** — All data access and querying logic (filtering, sorting, UUID generation). No HTTP knowledge.
 - **services/** — Thin orchestration layer. Delegates filtering/sorting to repository. Raises domain exceptions (never HTTP exceptions).
 - **api/** — HTTP boundary. Catches domain exceptions and converts them to `HTTPException`. Does not contain business logic.
 
@@ -128,7 +128,8 @@ Always run all three quality checks before committing.
 - **API layer translates domain exceptions to HTTP exceptions** using `try/except`.
 - **Service layer returns domain objects** (`Book`, `list[Book]`), never schema objects. FastAPI's `response_model` handles serialization.
 - **Filtering and sorting logic belongs in the repository layer**, not in services.
-- **Author filtering is exact match** (not case-insensitive substring).
+- **UUID generation belongs in the repository layer** (`add()` method), not in services.
+- **Do not use `Query()` wrapper** in FastAPI route function signatures unless you need additional validation parameters (e.g., aliases, metadata). Name parameters directly as you want them to appear in the query string.
 
 ---
 

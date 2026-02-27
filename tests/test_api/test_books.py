@@ -6,6 +6,7 @@ Business logic (filtering, sorting) is tested in lower-layer tests.
 
 from uuid import uuid4
 
+import pytest
 from fastapi.testclient import TestClient
 
 VALID_BOOK_PAYLOAD = {
@@ -51,6 +52,29 @@ class TestGetAllBooks:
         response = client.get("/books/", params={"sort_by": "invalid_field"})
 
         assert response.status_code == 422
+
+    @pytest.mark.parametrize(
+        "params",
+        [
+            {"status": "available"},
+            {"status": "issued"},
+            {"author": "F. Scott Fitzgerald"},
+            {"sort_by": "title"},
+            {"sort_by": "year"},
+            {"order": "asc"},
+            {"order": "desc"},
+            {"sort_by": "title", "order": "desc"},
+            {"status": "available", "sort_by": "year", "order": "asc"},
+        ],
+    )
+    def test_returns_200_for_valid_query_params(
+        self, client: TestClient, params: dict[str, str]
+    ) -> None:
+        _post_book(client)
+
+        response = client.get("/books/", params=params)
+
+        assert response.status_code == 200
 
 
 class TestGetBookById:

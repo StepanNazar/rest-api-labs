@@ -1,6 +1,6 @@
 """Business logic layer for managing library books."""
 
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from models.book import Book, BookStatus, SortField, SortOrder
 from repository.book_repository import BookRepository
@@ -58,16 +58,15 @@ class BookService:
         return book
 
     async def create_book(self, data: BookCreate) -> Book:
-        """Create and persist a new book with an auto-generated UUID.
+        """Create and persist a new book; the repository assigns a UUID.
 
         Args:
             data: Validated BookCreate payload from the request body.
 
         Returns:
-            The newly created Book.
+            The newly created Book with a repository-generated UUID.
         """
         book = Book(
-            id=uuid4(),
             title=data.title,
             author=data.author,
             description=data.description,

@@ -1,8 +1,8 @@
 """Book domain model, status and query enumerations."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
-from uuid import UUID
+from uuid import UUID, uuid4
 
 
 class BookStatus(StrEnum):
@@ -28,11 +28,16 @@ class SortOrder(StrEnum):
 
 @dataclass
 class Book:
-    """In-memory representation of a library book."""
+    """In-memory representation of a library book.
 
-    id: UUID
+    The `id` field is assigned by `BookRepository.add()`, which overwrites
+    any value set at construction time. The default_factory exists only to
+    allow creating a Book without an id before it is persisted.
+    """
+
     title: str
     author: str
     description: str
     status: BookStatus
     publication_year: int
+    id: UUID = field(default_factory=uuid4)

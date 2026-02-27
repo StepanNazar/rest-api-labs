@@ -1,7 +1,8 @@
 """Unit tests for the BookService class.
 
 Service tests verify that the service correctly delegates to the repository
-and performs its own responsibilities (UUID generation, exception raising).
+and performs its own responsibilities (exception raising).
+UUID generation is owned by the repository; tests here confirm the behavior end-to-end.
 Filtering/sorting logic is fully tested in test_book_repository.py.
 """
 

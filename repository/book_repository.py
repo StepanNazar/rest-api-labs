@@ -1,6 +1,6 @@
 """Repository layer responsible for in-memory storage of books."""
 
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from models.book import Book, BookStatus, SortField, SortOrder
 
@@ -61,14 +61,15 @@ class BookRepository:
         return self._books.get(book_id)
 
     def add(self, book: Book) -> Book:
-        """Persist a new book and return it.
+        """Assign a new UUID, persist the book, and return it.
 
         Args:
-            book: The Book record to store.
+            book: The Book record to store. Its id will be overwritten with a new UUID.
 
         Returns:
-            The stored Book record.
+            The stored Book record with the generated UUID.
         """
+        book.id = uuid4()
         self._books[book.id] = book
         return book
 
