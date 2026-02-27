@@ -1,6 +1,6 @@
 # AGENTS.md — Coding Agent Instructions
 
-This file contains instructions for AI coding agents working on this repository. Read it at the start of every session before making any changes.
+Read this file at the start of every session. **Keep this file concise** — explain everything in as few words as possible to avoid polluting the context window.
 
 ---
 
@@ -39,13 +39,14 @@ A **Library REST API** built with FastAPI. Manages the `Book` entity with in-mem
 ├── api/
 │   └── books.py                     # HTTP endpoints — catches domain exceptions, maps to HTTP
 └── tests/
-    ├── conftest.py                  # Shared fixtures (fresh_repository, fresh_service, client)
+    ├── conftest.py                  # Shared fixtures: repository, service, client
+    ├── helpers.py                   # Shared test utilities (make_book)
     ├── test_api/
-    │   └── test_books.py            # Integration tests for all endpoints
+    │   └── test_books.py            # HTTP-layer tests (status codes, validation, serialization)
     ├── test_repository/
-    │   └── test_book_repository.py  # Unit tests for BookRepository
+    │   └── test_book_repository.py  # Unit tests for BookRepository (all filtering/sorting logic)
     └── test_services/
-        └── test_book_service.py     # Unit tests for BookService
+        └── test_book_service.py     # Unit tests for BookService (delegation + UUID/exception behavior)
 ```
 
 ### Layer Responsibilities
@@ -125,9 +126,9 @@ Always run all three quality checks before committing.
 
 - **Service layer must never import from `fastapi`** (no `HTTPException`, no `status`). Raise plain Python domain exceptions instead.
 - **API layer translates domain exceptions to HTTP exceptions** using `try/except`.
+- **Service layer returns domain objects** (`Book`, `list[Book]`), never schema objects. FastAPI's `response_model` handles serialization.
 - **Filtering and sorting logic belongs in the repository layer**, not in services.
 - **Author filtering is exact match** (not case-insensitive substring).
-- **Do not use `Query()` wrapper** in FastAPI route function signatures unless you need additional validation parameters (e.g., aliases, metadata). Name parameters directly as you want them to appear in the query string.
 
 ---
 
@@ -164,7 +165,10 @@ Write **all tests before implementing** the production code. Tests must:
 
 - Use `@pytest.fixture()` for shared setup.
 - Use `@pytest.mark.parametrize` to cover boundary values and multiple input variants.
-- **Cover all logic combinations**: happy paths, edge cases, boundary values, error cases.
+- **Do not duplicate tests across layers.** Test each concern at exactly one level:
+  - **Repository**: all filtering, sorting, CRUD edge cases.
+  - **Service**: delegation to repository, UUID generation, domain exception raising.
+  - **API**: HTTP status codes, input validation (422), and domain→HTTP exception mapping.
 
 ### Step 3 — Implement
 
@@ -178,13 +182,13 @@ Write production code only after all tests exist. Keep implementation clean and 
 - **Do not put filtering/sorting logic in the service layer** — it belongs in the repository.
 - **Do not raise `HTTPException` in services** — raise domain exceptions (`BookNotFoundError`) and let the API layer convert them.
 - **Do not use `TypedDict` for domain models** — use `@dataclass` for mutable domain objects.
-- **Do not use `Query()` wrapper** for simple query params that need no aliases or extra validation.
-- **Do not enforce arbitrary range constraints on `publication_year`** unless explicitly required by the spec.
-- **Author filter is exact match**, not a case-insensitive substring search.
+- **Do not return schema objects from the service layer** — return domain objects and let FastAPI's `response_model` handle serialization.
+- **Do not add constraints on model fields** (e.g., range, min/max, regex) unless explicitly required by the spec.
+- **Do not duplicate business logic tests across layers** — test filtering/sorting in repository tests; test delegation in service tests; test HTTP behavior in API tests.
 - When adding a new field to the domain model, update: model, schema (BookCreate + BookResponse), repository `_SORT_ATTR` mapping (if sortable), service, and all affected tests.
 
 ---
 
 ## When You Are Corrected
 
-If a human corrects a general mistake you made (not a project-specific one), **add a rule to the "Common Mistakes to Avoid" section** above so you never repeat it.
+If a human corrects a mistake that is not a unique task-specific one that will never be repeated, **add a rule to the "Common Mistakes to Avoid" section** above so you never repeat it.

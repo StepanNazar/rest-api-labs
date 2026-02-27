@@ -4,7 +4,7 @@ from uuid import UUID, uuid4
 
 from models.book import Book, BookStatus, SortField, SortOrder
 from repository.book_repository import BookRepository
-from schemas.book import BookCreate, BookResponse
+from schemas.book import BookCreate
 from services.exceptions import BookNotFoundError
 
 
@@ -21,7 +21,7 @@ class BookService:
         filter_author: str | None = None,
         sort_by: SortField | None = None,
         order: SortOrder = SortOrder.ASC,
-    ) -> list[BookResponse]:
+    ) -> list[Book]:
         """Retrieve all books with optional filtering and sorting.
 
         Args:
@@ -31,24 +31,23 @@ class BookService:
             order: Sort direction, ascending by default.
 
         Returns:
-            A list of BookResponse objects matching the given criteria.
+            A list of Book objects matching the given criteria.
         """
-        books = self._repository.get_all(
+        return self._repository.get_all(
             filter_status=filter_status,
             filter_author=filter_author,
             sort_by=sort_by,
             order=order,
         )
-        return [BookResponse.model_validate(b) for b in books]
 
-    async def get_book(self, book_id: UUID) -> BookResponse:
+    async def get_book(self, book_id: UUID) -> Book:
         """Retrieve a single book by its ID.
 
         Args:
             book_id: The UUID of the book to retrieve.
 
         Returns:
-            The BookResponse for the requested book.
+            The Book with the given ID.
 
         Raises:
             BookNotFoundError: If no book with the given ID exists.
@@ -56,16 +55,16 @@ class BookService:
         book = self._repository.get_by_id(book_id)
         if book is None:
             raise BookNotFoundError(book_id)
-        return BookResponse.model_validate(book)
+        return book
 
-    async def create_book(self, data: BookCreate) -> BookResponse:
+    async def create_book(self, data: BookCreate) -> Book:
         """Create and persist a new book with an auto-generated UUID.
 
         Args:
             data: Validated BookCreate payload from the request body.
 
         Returns:
-            The BookResponse of the newly created book.
+            The newly created Book.
         """
         book = Book(
             id=uuid4(),
@@ -75,8 +74,7 @@ class BookService:
             status=data.status,
             publication_year=data.publication_year,
         )
-        saved = self._repository.add(book)
-        return BookResponse.model_validate(saved)
+        return self._repository.add(book)
 
     async def delete_book(self, book_id: UUID) -> None:
         """Delete a book by ID; silently succeeds if the book does not exist.

@@ -1,37 +1,10 @@
 """Unit tests for the BookRepository class."""
 
-from uuid import UUID, uuid4
+from uuid import uuid4
 
-import pytest
-
-from models.book import Book, BookStatus, SortField, SortOrder
+from models.book import BookStatus, SortField, SortOrder
 from repository.book_repository import BookRepository
-
-
-def _make_book(
-    *,
-    book_id: UUID | None = None,
-    title: str = "Default Title",
-    author: str = "Default Author",
-    description: str = "",
-    status: BookStatus = BookStatus.AVAILABLE,
-    publication_year: int = 2024,
-) -> Book:
-    """Create a Book dataclass instance with sensible defaults."""
-    return Book(
-        id=book_id or uuid4(),
-        title=title,
-        author=author,
-        description=description,
-        status=status,
-        publication_year=publication_year,
-    )
-
-
-@pytest.fixture()
-def repository() -> BookRepository:
-    """Return a fresh, empty BookRepository."""
-    return BookRepository()
+from tests.helpers import make_book
 
 
 class TestGetAll:
@@ -45,8 +18,8 @@ class TestGetAll:
     def test_returns_all_books_after_multiple_books_are_added(
         self, repository: BookRepository
     ) -> None:
-        book_one = _make_book(title="Book One")
-        book_two = _make_book(title="Book Two")
+        book_one = make_book(title="Book One")
+        book_two = make_book(title="Book Two")
         repository.add(book_one)
         repository.add(book_two)
 
@@ -57,8 +30,8 @@ class TestGetAll:
         assert book_two in result
 
     def test_filters_books_by_available_status(self, repository: BookRepository) -> None:
-        repository.add(_make_book(title="Available", status=BookStatus.AVAILABLE))
-        repository.add(_make_book(title="Issued", status=BookStatus.ISSUED))
+        repository.add(make_book(title="Available", status=BookStatus.AVAILABLE))
+        repository.add(make_book(title="Issued", status=BookStatus.ISSUED))
 
         result = repository.get_all(filter_status=BookStatus.AVAILABLE)
 
@@ -66,8 +39,8 @@ class TestGetAll:
         assert result[0].title == "Available"
 
     def test_filters_books_by_issued_status(self, repository: BookRepository) -> None:
-        repository.add(_make_book(title="Available", status=BookStatus.AVAILABLE))
-        repository.add(_make_book(title="Issued", status=BookStatus.ISSUED))
+        repository.add(make_book(title="Available", status=BookStatus.AVAILABLE))
+        repository.add(make_book(title="Issued", status=BookStatus.ISSUED))
 
         result = repository.get_all(filter_status=BookStatus.ISSUED)
 
@@ -75,8 +48,8 @@ class TestGetAll:
         assert result[0].title == "Issued"
 
     def test_filters_books_by_exact_author_match(self, repository: BookRepository) -> None:
-        repository.add(_make_book(author="John Doe"))
-        repository.add(_make_book(author="Jane Smith"))
+        repository.add(make_book(author="John Doe"))
+        repository.add(make_book(author="Jane Smith"))
 
         result = repository.get_all(filter_author="John Doe")
 
@@ -86,8 +59,8 @@ class TestGetAll:
     def test_does_not_return_books_with_partial_author_match(
         self, repository: BookRepository
     ) -> None:
-        repository.add(_make_book(author="George R.R. Martin"))
-        repository.add(_make_book(author="George Orwell"))
+        repository.add(make_book(author="George R.R. Martin"))
+        repository.add(make_book(author="George Orwell"))
 
         result = repository.get_all(filter_author="George")
 
@@ -96,43 +69,43 @@ class TestGetAll:
     def test_returns_empty_list_when_no_books_match_status_filter(
         self, repository: BookRepository
     ) -> None:
-        repository.add(_make_book(status=BookStatus.AVAILABLE))
+        repository.add(make_book(status=BookStatus.AVAILABLE))
 
         result = repository.get_all(filter_status=BookStatus.ISSUED)
 
         assert result == []
 
     def test_sorts_books_by_title_ascending(self, repository: BookRepository) -> None:
-        repository.add(_make_book(title="Zebra"))
-        repository.add(_make_book(title="Apple"))
-        repository.add(_make_book(title="Mango"))
+        repository.add(make_book(title="Zebra"))
+        repository.add(make_book(title="Apple"))
+        repository.add(make_book(title="Mango"))
 
         result = repository.get_all(sort_by=SortField.TITLE, order=SortOrder.ASC)
 
         assert [b.title for b in result] == ["Apple", "Mango", "Zebra"]
 
     def test_sorts_books_by_title_descending(self, repository: BookRepository) -> None:
-        repository.add(_make_book(title="Zebra"))
-        repository.add(_make_book(title="Apple"))
-        repository.add(_make_book(title="Mango"))
+        repository.add(make_book(title="Zebra"))
+        repository.add(make_book(title="Apple"))
+        repository.add(make_book(title="Mango"))
 
         result = repository.get_all(sort_by=SortField.TITLE, order=SortOrder.DESC)
 
         assert [b.title for b in result] == ["Zebra", "Mango", "Apple"]
 
     def test_sorts_books_by_year_ascending(self, repository: BookRepository) -> None:
-        repository.add(_make_book(publication_year=2020))
-        repository.add(_make_book(publication_year=1990))
-        repository.add(_make_book(publication_year=2005))
+        repository.add(make_book(publication_year=2020))
+        repository.add(make_book(publication_year=1990))
+        repository.add(make_book(publication_year=2005))
 
         result = repository.get_all(sort_by=SortField.YEAR, order=SortOrder.ASC)
 
         assert [b.publication_year for b in result] == [1990, 2005, 2020]
 
     def test_sorts_books_by_year_descending(self, repository: BookRepository) -> None:
-        repository.add(_make_book(publication_year=2020))
-        repository.add(_make_book(publication_year=1990))
-        repository.add(_make_book(publication_year=2005))
+        repository.add(make_book(publication_year=2020))
+        repository.add(make_book(publication_year=1990))
+        repository.add(make_book(publication_year=2005))
 
         result = repository.get_all(sort_by=SortField.YEAR, order=SortOrder.DESC)
 
@@ -141,9 +114,9 @@ class TestGetAll:
     def test_applies_status_filter_and_title_sort_together(
         self, repository: BookRepository
     ) -> None:
-        repository.add(_make_book(title="C Book", status=BookStatus.AVAILABLE))
-        repository.add(_make_book(title="A Book", status=BookStatus.AVAILABLE))
-        repository.add(_make_book(title="B Book", status=BookStatus.ISSUED))
+        repository.add(make_book(title="C Book", status=BookStatus.AVAILABLE))
+        repository.add(make_book(title="A Book", status=BookStatus.AVAILABLE))
+        repository.add(make_book(title="B Book", status=BookStatus.ISSUED))
 
         result = repository.get_all(
             filter_status=BookStatus.AVAILABLE,
@@ -157,7 +130,7 @@ class TestGetAll:
 
 class TestAdd:
     def test_returns_the_same_book_that_was_added(self, repository: BookRepository) -> None:
-        book = _make_book(title="My Book")
+        book = make_book(title="My Book")
 
         returned = repository.add(book)
 
@@ -166,7 +139,7 @@ class TestAdd:
     def test_book_is_persisted_and_retrievable_after_adding(
         self, repository: BookRepository
     ) -> None:
-        book = _make_book()
+        book = make_book()
 
         repository.add(book)
 
@@ -175,7 +148,7 @@ class TestAdd:
 
 class TestGetById:
     def test_returns_the_book_when_it_exists(self, repository: BookRepository) -> None:
-        book = _make_book()
+        book = make_book()
         repository.add(book)
 
         result = repository.get_by_id(book.id)
@@ -183,7 +156,7 @@ class TestGetById:
         assert result == book
 
     def test_returns_none_when_no_book_has_the_given_id(self, repository: BookRepository) -> None:
-        repository.add(_make_book())
+        repository.add(make_book())
         missing_id = uuid4()
 
         result = repository.get_by_id(missing_id)
@@ -198,7 +171,7 @@ class TestGetById:
 
 class TestDelete:
     def test_removes_existing_book_from_storage(self, repository: BookRepository) -> None:
-        book = _make_book()
+        book = make_book()
         repository.add(book)
 
         repository.delete(book.id)
@@ -206,7 +179,7 @@ class TestDelete:
         assert repository.get_by_id(book.id) is None
 
     def test_does_nothing_when_book_does_not_exist(self, repository: BookRepository) -> None:
-        repository.add(_make_book())
+        repository.add(make_book())
         non_existing_id = uuid4()
 
         repository.delete(non_existing_id)
@@ -216,8 +189,8 @@ class TestDelete:
     def test_only_removes_the_targeted_book_leaving_others_intact(
         self, repository: BookRepository
     ) -> None:
-        book_to_keep = _make_book(title="Keep Me")
-        book_to_delete = _make_book(title="Delete Me")
+        book_to_keep = make_book(title="Keep Me")
+        book_to_delete = make_book(title="Delete Me")
         repository.add(book_to_keep)
         repository.add(book_to_delete)
 
@@ -230,7 +203,7 @@ class TestDelete:
     def test_is_idempotent_when_called_twice_for_the_same_id(
         self, repository: BookRepository
     ) -> None:
-        book = _make_book()
+        book = make_book()
         repository.add(book)
 
         repository.delete(book.id)

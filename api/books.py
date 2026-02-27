@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi import status as http_status
 
 from dependencies import get_book_service
-from models.book import BookStatus, SortField, SortOrder
+from models.book import Book, BookStatus, SortField, SortOrder
 from schemas.book import BookCreate, BookResponse
 from services.book_service import BookService
 from services.exceptions import BookNotFoundError
@@ -22,7 +22,7 @@ async def get_books(
     author: str | None = None,
     sort_by: SortField | None = None,
     order: SortOrder = SortOrder.ASC,
-) -> list[BookResponse]:
+) -> list[Book]:
     """Return all books, optionally filtered and sorted.
 
     Args:
@@ -33,7 +33,7 @@ async def get_books(
         order: Sort direction (asc or desc).
 
     Returns:
-        A list of BookResponse objects.
+        A list of Book objects (serialized via response_model).
     """
     return await service.get_books(
         filter_status=status,
@@ -47,7 +47,7 @@ async def get_books(
 async def get_book(
     book_id: UUID,
     service: Annotated[BookService, Depends(get_book_service)],
-) -> BookResponse:
+) -> Book:
     """Return a single book by its UUID.
 
     Args:
@@ -55,7 +55,7 @@ async def get_book(
         service: Injected BookService.
 
     Returns:
-        The BookResponse for the requested book.
+        The Book (serialized via response_model).
 
     Raises:
         HTTPException: 404 if the book does not exist.
@@ -73,7 +73,7 @@ async def get_book(
 async def create_book(
     payload: BookCreate,
     service: Annotated[BookService, Depends(get_book_service)],
-) -> BookResponse:
+) -> Book:
     """Create a new book and return it with a generated UUID.
 
     Args:
@@ -81,7 +81,7 @@ async def create_book(
         service: Injected BookService.
 
     Returns:
-        The newly created BookResponse with HTTP 201.
+        The newly created Book (serialized via response_model) with HTTP 201.
     """
     return await service.create_book(payload)
 
