@@ -5,24 +5,30 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi import status as http_status
+from fastapi_hypermodel import SirenResponse
 
 from dependencies import get_book_service
 from models.book import Book, BookStatus, SortField, SortOrder
-from schemas.book import BookCreate, BookResponse
+from schemas.book import BookCollectionResponse, BookCreate, BookResponse
 from services.book_service import BookService
 from services.exceptions import BookNotFoundError
 
 router = APIRouter(prefix="/books", tags=["books"])
 
 
-@router.get("/", response_model=list[BookResponse], status_code=http_status.HTTP_200_OK)
+@router.get(
+    "/",
+    response_model=BookCollectionResponse,
+    status_code=http_status.HTTP_200_OK,
+    response_class=SirenResponse,
+)
 async def get_books(
     service: Annotated[BookService, Depends(get_book_service)],
     status: BookStatus | None = None,
     author: str | None = None,
     sort_by: SortField | None = None,
     order: SortOrder = SortOrder.ASC,
-) -> list[Book]:
+) -> dict[str, list[Book]]:
     """Return all books, optionally filtered and sorted.
 
     Args:
@@ -35,15 +41,22 @@ async def get_books(
     Returns:
         A list of Book objects (serialized via response_model).
     """
-    return await service.get_books(
-        filter_status=status,
-        filter_author=author,
-        sort_by=sort_by,
-        order=order,
-    )
+    return {
+        "items": await service.get_books(
+            filter_status=status,
+            filter_author=author,
+            sort_by=sort_by,
+            order=order,
+        )
+    }
 
 
-@router.get("/{book_id}", response_model=BookResponse, status_code=http_status.HTTP_200_OK)
+@router.get(
+    "/{book_id}",
+    response_model=BookResponse,
+    status_code=http_status.HTTP_200_OK,
+    response_class=SirenResponse,
+)
 async def get_book(
     book_id: UUID,
     service: Annotated[BookService, Depends(get_book_service)],
@@ -69,7 +82,12 @@ async def get_book(
         ) from exc
 
 
-@router.post("/", response_model=BookResponse, status_code=http_status.HTTP_201_CREATED)
+@router.post(
+    "/",
+    response_model=BookResponse,
+    status_code=http_status.HTTP_201_CREATED,
+    response_class=SirenResponse,
+)
 async def create_book(
     payload: BookCreate,
     service: Annotated[BookService, Depends(get_book_service)],

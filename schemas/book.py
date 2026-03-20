@@ -1,7 +1,9 @@
 """Pydantic schemas for request validation and response serialization."""
 
+from collections.abc import Sequence
 from uuid import UUID
 
+from fastapi_hypermodel import SirenActionFor, SirenHyperModel, SirenLinkFor
 from pydantic import BaseModel, Field
 
 from models.book import BookStatus, SortField, SortOrder
@@ -27,7 +29,7 @@ class BookCreate(BaseModel):
     publication_year: int
 
 
-class BookResponse(BaseModel):
+class BookResponse(SirenHyperModel):
     """Schema for returning book data in API responses.
 
     Attributes:
@@ -46,4 +48,20 @@ class BookResponse(BaseModel):
     status: BookStatus
     publication_year: int
 
+    links: Sequence[SirenLinkFor] = (SirenLinkFor("get_book", {"book_id": "<id>"}, rel=["self"]),)
+    actions: Sequence[SirenActionFor] = (
+        SirenActionFor("delete_book", {"book_id": "<id>"}, name="delete"),
+    )
+
     model_config = {"from_attributes": True}
+
+
+class BookCollectionResponse(SirenHyperModel):
+    items: Sequence[BookResponse]
+
+    links: Sequence[SirenLinkFor] = (SirenLinkFor("get_books", rel=["self"]),)
+    actions: Sequence[SirenActionFor] = (
+        SirenActionFor("get_book", templated=True, name="find"),
+        SirenActionFor("delete_book", templated=True, name="delete"),
+        SirenActionFor("create_book", name="create"),
+    )

@@ -23,7 +23,7 @@ def _post_book(client: TestClient, overrides: dict[str, object] | None = None) -
     payload = {**VALID_BOOK_PAYLOAD, **(overrides or {})}
     response = client.post("/books/", json=payload)
     assert response.status_code == 201
-    result: dict[str, object] = response.json()
+    result: dict[str, object] = response.json()["properties"]
     return result
 
 
@@ -32,7 +32,7 @@ class TestGetAllBooks:
         response = client.get("/books/")
 
         assert response.status_code == 200
-        assert response.json() == []
+        assert "entities" not in response.json()
 
     def test_returns_200_with_all_books(self, client: TestClient) -> None:
         _post_book(client, {"title": "Book One"})
@@ -41,7 +41,7 @@ class TestGetAllBooks:
         response = client.get("/books/")
 
         assert response.status_code == 200
-        assert len(response.json()) == 2
+        assert len(response.json()["entities"]) == 2
 
     def test_returns_422_for_invalid_status_filter(self, client: TestClient) -> None:
         response = client.get("/books/", params={"status": "nonexistent"})
@@ -84,7 +84,7 @@ class TestGetBookById:
         response = client.get(f"/books/{created['id']}")
 
         assert response.status_code == 200
-        assert response.json()["id"] == created["id"]
+        assert response.json()["properties"]["id"] == created["id"]
 
     def test_returns_404_when_book_id_does_not_exist(self, client: TestClient) -> None:
         response = client.get(f"/books/{uuid4()}")
@@ -103,8 +103,8 @@ class TestCreateBook:
 
         assert response.status_code == 201
         body = response.json()
-        assert body["title"] == VALID_BOOK_PAYLOAD["title"]
-        assert len(body["id"]) == 36
+        assert body["properties"]["title"] == VALID_BOOK_PAYLOAD["title"]
+        assert len(body["properties"]["id"]) == 36
 
     def test_returns_422_when_required_field_is_missing(self, client: TestClient) -> None:
         payload = {k: v for k, v in VALID_BOOK_PAYLOAD.items() if k != "title"}
