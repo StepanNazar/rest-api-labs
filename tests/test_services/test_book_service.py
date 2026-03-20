@@ -55,6 +55,20 @@ class TestGetBooks:
 
         assert [b.title for b in result] == ["Apple", "Zebra"]
 
+    async def test_delegates_pagination_params_to_repository(
+        self, service: BookService, repository: BookRepository
+    ) -> None:
+        for i in range(10):
+            repository.add(make_book(title=f"Book {i:02d}"))
+
+        result = await service.get_books(limit=3, offset=4, sort_by=SortField.TITLE)
+
+        assert len(result) == 3
+        # With offset 4, we expect books starting from the 5th (index 4)
+        assert result[0].title == "Book 04"
+        assert result[1].title == "Book 05"
+        assert result[2].title == "Book 06"
+
     async def test_returns_book_instances(
         self, service: BookService, repository: BookRepository
     ) -> None:

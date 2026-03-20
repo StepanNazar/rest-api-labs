@@ -82,7 +82,7 @@ uv sync --dev
 uv run python main.py
 
 # Run tests
-uv run pytest tests/ -v
+uv run pytest
 
 # Lint and format
 uv run ruff check .

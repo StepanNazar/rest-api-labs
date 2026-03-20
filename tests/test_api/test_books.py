@@ -43,6 +43,37 @@ class TestGetAllBooks:
         assert response.status_code == 200
         assert len(response.json()["entities"]) == 2
 
+    def test_returns_paginated_books_with_limit_and_offset(self, client: TestClient) -> None:
+        for i in range(10):
+            _post_book(client, {"title": f"Book {i:02d}"})
+
+        # We need a stable sort to test offset correctly
+        params = {"limit": 3, "offset": 3, "sort_by": "title", "order": "asc"}
+        response = client.get("/books/", params=params)
+
+        assert response.status_code == 200
+        entities = response.json()["entities"]
+        assert len(entities) == 3
+        # Offset 3 skips index 0, 1, 2. So starting with 3.
+        assert entities[0]["properties"]["title"] == "Book 03"
+        assert entities[1]["properties"]["title"] == "Book 04"
+        assert entities[2]["properties"]["title"] == "Book 05"
+
+    def test_returns_422_for_invalid_limit_too_small(self, client: TestClient) -> None:
+        response = client.get("/books/", params={"limit": 0})
+
+        assert response.status_code == 422
+
+    def test_returns_422_for_invalid_limit_too_large(self, client: TestClient) -> None:
+        response = client.get("/books/", params={"limit": 101})
+
+        assert response.status_code == 422
+
+    def test_returns_422_for_invalid_offset_negative(self, client: TestClient) -> None:
+        response = client.get("/books/", params={"offset": -1})
+
+        assert response.status_code == 422
+
     def test_returns_422_for_invalid_status_filter(self, client: TestClient) -> None:
         response = client.get("/books/", params={"status": "nonexistent"})
 

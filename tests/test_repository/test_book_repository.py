@@ -127,6 +127,46 @@ class TestGetAll:
         assert len(result) == 2
         assert [b.title for b in result] == ["A Book", "C Book"]
 
+    def test_limits_returned_books_to_the_given_number(
+        self, in_memory_book_repository: BookRepository
+    ) -> None:
+        for i in range(5):
+            in_memory_book_repository.add(make_book(title=f"Book {i}"))
+
+        result = in_memory_book_repository.get_all(limit=2)
+
+        assert len(result) == 2
+
+    def test_skips_the_specified_number_of_books_via_offset(
+        self, in_memory_book_repository: BookRepository
+    ) -> None:
+        in_memory_book_repository.add(make_book(title="Book 0"))
+        in_memory_book_repository.add(make_book(title="Book 1"))
+        in_memory_book_repository.add(make_book(title="Book 2"))
+
+        # We sort by title to have deterministic order for offset
+        result = in_memory_book_repository.get_all(
+            offset=1, sort_by=SortField.TITLE, order=SortOrder.ASC
+        )
+
+        assert len(result) == 2
+        assert result[0].title == "Book 1"
+        assert result[1].title == "Book 2"
+
+    def test_combines_limit_and_offset_correctly(
+        self, in_memory_book_repository: BookRepository
+    ) -> None:
+        for i in range(5):
+            in_memory_book_repository.add(make_book(title=f"Book {i}"))
+
+        result = in_memory_book_repository.get_all(
+            limit=2, offset=2, sort_by=SortField.TITLE, order=SortOrder.ASC
+        )
+
+        assert len(result) == 2
+        assert result[0].title == "Book 2"
+        assert result[1].title == "Book 3"
+
 
 class TestAdd:
     def test_returns_the_same_book_that_was_added(self, in_memory_book_repository: BookRepository) -> None:
