@@ -2,7 +2,7 @@
 
 from uuid import UUID, uuid4
 
-from models.book import Book, BookStatus
+from app.models.book import Book, BookStatus
 
 
 def make_book(

@@ -3,15 +3,15 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi import status as http_status
 from fastapi_hypermodel import SirenResponse
 
-from dependencies import get_book_service
-from models.book import Book, BookStatus, SortField, SortOrder
-from schemas.book import BookCollectionResponse, BookCreate, BookResponse
-from services.book_service import BookService
-from services.exceptions import BookNotFoundError
+from app.dependencies import get_book_service
+from app.models.book import Book, BookStatus, SortField, SortOrder
+from app.schemas.book import BookCollectionResponse, BookCreate, BookResponse
+from app.services.book_service import BookService
+from app.services.exceptions import BookNotFoundError
 
 router = APIRouter(prefix="/books", tags=["books"])
 
@@ -28,8 +28,10 @@ async def get_books(
     author: str | None = None,
     sort_by: SortField | None = None,
     order: SortOrder = SortOrder.ASC,
+    limit: int = Query(10, ge=1, le=100),
+    offset: int = Query(0, ge=0),
 ) -> dict[str, list[Book]]:
-    """Return all books, optionally filtered and sorted.
+    """Return books, optionally filtered, sorted and paginated.
 
     Args:
         service: Injected BookService.
@@ -37,9 +39,11 @@ async def get_books(
         author: Optional exact author filter.
         sort_by: Field to sort results by.
         order: Sort direction (asc or desc).
+        limit: Maximum number of books to return.
+        offset: Number of books to skip.
 
     Returns:
-        A list of Book objects (serialized via response_model).
+        A collection of Book objects.
     """
     return {
         "items": await service.get_books(
@@ -47,6 +51,8 @@ async def get_books(
             filter_author=author,
             sort_by=sort_by,
             order=order,
+            limit=limit,
+            offset=offset,
         )
     }
 

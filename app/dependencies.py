@@ -1,22 +1,25 @@
 """FastAPI dependency providers for repository and service instances."""
 
-from functools import lru_cache
 from typing import Annotated
 
 from fastapi import Depends
+from sqlalchemy.orm import Session
 
-from repository.book_repository import BookRepository
-from services.book_service import BookService
+from app.database import get_db
+from app.repository.book_repository import BookRepository
+from app.services.book_service import BookService
 
 
-@lru_cache(maxsize=1)
-def get_book_repository() -> BookRepository:
-    """Return the application-wide singleton BookRepository.
+def get_book_repository(db: Annotated[Session, Depends(get_db)]) -> BookRepository:
+    """Return a BookRepository initialized with the database session.
+
+    Args:
+        db: The SQLAlchemy session to inject.
 
     Returns:
-        The shared BookRepository instance.
+        A BookRepository instance.
     """
-    return BookRepository()
+    return BookRepository(db)
 
 
 def get_book_service(

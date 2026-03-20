@@ -10,11 +10,11 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from models.book import Book, BookStatus, SortField, SortOrder
-from repository.book_repository import BookRepository
-from schemas.book import BookCreate
-from services.book_service import BookService
-from services.exceptions import BookNotFoundError
+from app.models.book import Book, BookStatus, SortField, SortOrder
+from app.repository.book_repository import BookRepository
+from app.schemas.book import BookCreate
+from app.services.book_service import BookService
+from app.services.exceptions import BookNotFoundError
 from tests.helpers import make_book
 
 
