@@ -2,10 +2,12 @@
 
 import uvicorn
 from fastapi import FastAPI
+from fastapi_hypermodel import SirenHyperModel
 
 from api.books import router as books_router
 
 app = FastAPI(title="Library API", version="0.1.0")
+SirenHyperModel.init_app(app)
 
 app.include_router(books_router)
 
