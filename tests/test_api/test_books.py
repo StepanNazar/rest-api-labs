@@ -32,7 +32,7 @@ class TestGetAllBooks:
         response = client.get("/books/")
 
         assert response.status_code == 200
-        assert "entities" not in response.json()
+        assert "items" not in response.json()["properties"]
 
     def test_returns_200_with_all_books(self, client: TestClient) -> None:
         _post_book(client, {"title": "Book One"})
@@ -41,23 +41,23 @@ class TestGetAllBooks:
         response = client.get("/books/")
 
         assert response.status_code == 200
-        assert len(response.json()["entities"]) == 2
+        assert len(response.json()["properties"]["items"]) == 2
 
     def test_returns_paginated_books_with_limit_and_offset(self, client: TestClient) -> None:
         for i in range(10):
             _post_book(client, {"title": f"Book {i:02d}"})
 
         # We need a stable sort to test offset correctly
-        params = {"limit": 3, "offset": 3, "sort_by": "title", "order": "asc"}
+        params: dict[str, str | int] = {"limit": 3, "offset": 3, "sort_by": "title", "order": "asc"}
         response = client.get("/books/", params=params)
 
         assert response.status_code == 200
-        entities = response.json()["entities"]
-        assert len(entities) == 3
+        items = response.json()["properties"]["items"]
+        assert len(items) == 3
         # Offset 3 skips index 0, 1, 2. So starting with 3.
-        assert entities[0]["properties"]["title"] == "Book 03"
-        assert entities[1]["properties"]["title"] == "Book 04"
-        assert entities[2]["properties"]["title"] == "Book 05"
+        assert items[0]["properties"]["title"] == "Book 03"
+        assert items[1]["properties"]["title"] == "Book 04"
+        assert items[2]["properties"]["title"] == "Book 05"
 
     def test_returns_422_for_invalid_limit_too_small(self, client: TestClient) -> None:
         response = client.get("/books/", params={"limit": 0})

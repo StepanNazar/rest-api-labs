@@ -23,7 +23,7 @@ class BookService:
         order: SortOrder = SortOrder.ASC,
         limit: int = 10,
         offset: int = 0,
-    ) -> list[Book]:
+    ) -> tuple[list[Book], int]:
         """Retrieve books with optional filtering, sorting and pagination.
 
         Args:
@@ -35,7 +35,7 @@ class BookService:
             offset: Number of books to skip.
 
         Returns:
-            A list of Book objects matching the given criteria.
+            A tuple of (list of Book objects, total count).
         """
         return self._repository.get_all(
             filter_status=filter_status,

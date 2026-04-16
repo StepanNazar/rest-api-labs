@@ -1,7 +1,8 @@
 """Database configuration and session management."""
 
 import os
-from typing import Annotated, Generator
+from collections.abc import Generator
+from typing import Annotated
 
 from dotenv import load_dotenv
 from fastapi import Depends
@@ -17,6 +18,7 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 class Base(DeclarativeBase):
     """Base class for SQLAlchemy models."""
+
     pass
 
 

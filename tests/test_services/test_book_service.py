@@ -20,7 +20,7 @@ from tests.helpers import make_book
 
 class TestGetBooks:
     async def test_returns_empty_list_when_no_books_exist(self, service: BookService) -> None:
-        result = await service.get_books()
+        result, count = await service.get_books()
 
         assert result == []
 
@@ -30,7 +30,7 @@ class TestGetBooks:
         repository.add(make_book(title="Book A"))
         repository.add(make_book(title="Book B"))
 
-        result = await service.get_books()
+        result, count = await service.get_books()
 
         assert len(result) == 2
 
@@ -40,7 +40,7 @@ class TestGetBooks:
         repository.add(make_book(title="Available", status=BookStatus.AVAILABLE))
         repository.add(make_book(title="Issued", status=BookStatus.ISSUED))
 
-        result = await service.get_books(filter_status=BookStatus.AVAILABLE)
+        result, count = await service.get_books(filter_status=BookStatus.AVAILABLE)
 
         assert len(result) == 1
         assert result[0].title == "Available"
@@ -51,7 +51,7 @@ class TestGetBooks:
         repository.add(make_book(title="Zebra"))
         repository.add(make_book(title="Apple"))
 
-        result = await service.get_books(sort_by=SortField.TITLE, order=SortOrder.ASC)
+        result, count = await service.get_books(sort_by=SortField.TITLE, order=SortOrder.ASC)
 
         assert [b.title for b in result] == ["Apple", "Zebra"]
 
@@ -61,7 +61,7 @@ class TestGetBooks:
         for i in range(10):
             repository.add(make_book(title=f"Book {i:02d}"))
 
-        result = await service.get_books(limit=3, offset=4, sort_by=SortField.TITLE)
+        result, count = await service.get_books(limit=3, offset=4, sort_by=SortField.TITLE)
 
         assert len(result) == 3
         # With offset 4, we expect books starting from the 5th (index 4)
@@ -74,7 +74,7 @@ class TestGetBooks:
     ) -> None:
         repository.add(make_book())
 
-        result = await service.get_books()
+        result, count = await service.get_books()
 
         assert all(isinstance(b, Book) for b in result)
 

@@ -2,7 +2,7 @@
 
 from uuid import UUID
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from app.models.book import Book, BookStatus, SortField, SortOrder
@@ -28,7 +28,7 @@ class BookRepository:
         order: SortOrder = SortOrder.ASC,
         limit: int = 10,
         offset: int = 0,
-    ) -> list[Book]:
+    ) -> tuple[list[Book], int]:
         """Return books from storage, optionally filtered and sorted with pagination.
 
         Args:
@@ -40,15 +40,20 @@ class BookRepository:
             offset: Number of books to skip before starting to return.
 
         Returns:
-            A filtered, sorted, and paginated list of Book records.
+            A tuple of (filtered, sorted, and paginated list of Book records, total count).
         """
         stmt = select(Book)
+        count_stmt = select(func.count()).select_from(Book)
 
         if filter_status is not None:
             stmt = stmt.where(Book.status == filter_status)
+            count_stmt = count_stmt.where(Book.status == filter_status)
 
         if filter_author is not None:
             stmt = stmt.where(Book.author == filter_author)
+            count_stmt = count_stmt.where(Book.author == filter_author)
+
+        total_items = self._db.scalar(count_stmt) or 0
 
         if sort_by is not None:
             attr_name = _SORT_ATTR[sort_by]
@@ -60,13 +65,16 @@ class BookRepository:
 
         stmt = stmt.limit(limit).offset(offset)
 
-        return list(self._db.scalars(stmt).all())
+        items = list(self._db.scalars(stmt).all())
+        return items, total_items
 
     def get_by_id(self, book_id: UUID) -> Book | None:
         """Find a book by its unique identifier.
 
         Args:
-            book_id: The UUID of the book to retrieve.
+            book_id: The UUID ocount_stmt = count_stmt.where(Book.author == filter_author)
+
+        total_items = self._db.scalarf the book to retrieve.
 
         Returns:
             The matching Book if found, otherwise None.
