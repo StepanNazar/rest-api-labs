@@ -6,7 +6,7 @@ from uuid import UUID
 from fastapi_hypermodel import SirenActionFor, SirenHyperModel, SirenLinkFor
 from pydantic import BaseModel, Field
 
-from models.book import BookStatus, SortField, SortOrder
+from app.models.book import BookStatus, SortField, SortOrder
 
 __all__ = ["BookCreate", "BookResponse", "SortField", "SortOrder"]
 
@@ -57,9 +57,37 @@ class BookResponse(SirenHyperModel):
 
 
 class BookCollectionResponse(SirenHyperModel):
-    items: Sequence[BookResponse]
+    """Schema for returning a collection of books with pagination metadata.
 
-    links: Sequence[SirenLinkFor] = (SirenLinkFor("get_books", rel=["self"]),)
+    Attributes:
+        items: List of books in the current page.
+        limit: Maximum number of items per page.
+        offset: Number of items skipped.
+        total: Total number of items matching the query.
+        count: Number of items in the current page.
+    """
+
+    items: Sequence[BookResponse]
+    limit: int
+    offset: int
+    total: int
+    count: int
+    next_offset: int | None
+    prev_offset: int | None
+
+    links: Sequence[SirenLinkFor] = (
+        SirenLinkFor("get_books", rel=["self"]),
+        SirenLinkFor(
+            "get_books",
+            rel=["next"],
+            condition=lambda values: values["offset"] + values["limit"] < values["total"],
+        ),
+        SirenLinkFor(
+            "get_books",
+            rel=["prev"],
+            condition=lambda values: values["offset"] > 0,
+        ),
+    )
     actions: Sequence[SirenActionFor] = (
         SirenActionFor("get_book", templated=True, name="find"),
         SirenActionFor("delete_book", templated=True, name="delete"),

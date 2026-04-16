@@ -1,17 +1,18 @@
 """API endpoints for managing library books."""
 
 from typing import Annotated
+from urllib.parse import urlencode
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi import status as http_status
-from fastapi_hypermodel import SirenResponse
+from fastapi_hypermodel import SirenResponse, UrlType
 
-from dependencies import get_book_service
-from models.book import Book, BookStatus, SortField, SortOrder
-from schemas.book import BookCollectionResponse, BookCreate, BookResponse
-from services.book_service import BookService
-from services.exceptions import BookNotFoundError
+from app.dependencies import get_book_service
+from app.models.book import Book, BookStatus, SortField, SortOrder
+from app.schemas.book import BookCollectionResponse, BookCreate, BookResponse
+from app.services.book_service import BookService
+from app.services.exceptions import BookNotFoundError
 
 router = APIRouter(prefix="/books", tags=["books"])
 
@@ -23,32 +24,74 @@ router = APIRouter(prefix="/books", tags=["books"])
     response_class=SirenResponse,
 )
 async def get_books(
+    request: Request,
     service: Annotated[BookService, Depends(get_book_service)],
     status: BookStatus | None = None,
     author: str | None = None,
     sort_by: SortField | None = None,
     order: SortOrder = SortOrder.ASC,
-) -> dict[str, list[Book]]:
-    """Return all books, optionally filtered and sorted.
+    limit: int = Query(10, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+) -> BookCollectionResponse:
+    """Return books, optionally filtered, sorted and paginated.
 
     Args:
+        request: FastAPI Request object for accessing query parameters.
         service: Injected BookService.
         status: Optional status filter.
         author: Optional exact author filter.
         sort_by: Field to sort results by.
         order: Sort direction (asc or desc).
+        limit: Maximum number of books to return.
+        offset: Number of books to skip.
 
     Returns:
-        A list of Book objects (serialized via response_model).
+        A collection of Book objects with pagination metadata.
     """
-    return {
-        "items": await service.get_books(
-            filter_status=status,
-            filter_author=author,
-            sort_by=sort_by,
-            order=order,
-        )
-    }
+    items, total = await service.get_books(
+        filter_status=status,
+        filter_author=author,
+        sort_by=sort_by,
+        order=order,
+        limit=limit,
+        offset=offset,
+    )
+    result = BookCollectionResponse(
+        **{
+            "items": items,
+            "limit": limit,
+            "offset": offset,
+            "total": total,
+            "count": len(items),
+            "next_offset": None,
+            "prev_offset": None,
+        }
+    )
+    params = dict(request.query_params)
+    next_params = None
+    prev_params = None
+    next_offset = offset + limit
+    if next_offset < total:
+        result.next_offset = next_offset
+        next_params = params.copy()
+        next_params["offset"] = str(next_offset)
+    if offset > 0:
+        prev_offset = max(offset - limit, 0)
+        result.prev_offset = prev_offset
+        prev_params = params.copy()
+        prev_params["offset"] = str(prev_offset)
+    for link in result.links:
+        if "self" in link.rel:
+            query_str = urlencode(params, doseq=True)
+            link.href = UrlType(request.url.replace(query=query_str))
+        if "next" in link.rel and next_params is not None:
+            query_str = urlencode(next_params, doseq=True)
+            link.href = UrlType(request.url.replace(query=query_str))
+        if "prev" in link.rel and prev_params is not None:
+            query_str = urlencode(prev_params, doseq=True)
+            link.href = UrlType(request.url.replace(query=query_str))
+    result.items = result.entities # noqa
+    return result
 
 
 @router.get(

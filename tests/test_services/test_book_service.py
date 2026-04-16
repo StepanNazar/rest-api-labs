@@ -10,17 +10,17 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from models.book import Book, BookStatus, SortField, SortOrder
-from repository.book_repository import BookRepository
-from schemas.book import BookCreate
-from services.book_service import BookService
-from services.exceptions import BookNotFoundError
+from app.models.book import Book, BookStatus, SortField, SortOrder
+from app.repository.book_repository import BookRepository
+from app.schemas.book import BookCreate
+from app.services.book_service import BookService
+from app.services.exceptions import BookNotFoundError
 from tests.helpers import make_book
 
 
 class TestGetBooks:
     async def test_returns_empty_list_when_no_books_exist(self, service: BookService) -> None:
-        result = await service.get_books()
+        result, count = await service.get_books()
 
         assert result == []
 
@@ -30,7 +30,7 @@ class TestGetBooks:
         repository.add(make_book(title="Book A"))
         repository.add(make_book(title="Book B"))
 
-        result = await service.get_books()
+        result, count = await service.get_books()
 
         assert len(result) == 2
 
@@ -40,7 +40,7 @@ class TestGetBooks:
         repository.add(make_book(title="Available", status=BookStatus.AVAILABLE))
         repository.add(make_book(title="Issued", status=BookStatus.ISSUED))
 
-        result = await service.get_books(filter_status=BookStatus.AVAILABLE)
+        result, count = await service.get_books(filter_status=BookStatus.AVAILABLE)
 
         assert len(result) == 1
         assert result[0].title == "Available"
@@ -51,16 +51,30 @@ class TestGetBooks:
         repository.add(make_book(title="Zebra"))
         repository.add(make_book(title="Apple"))
 
-        result = await service.get_books(sort_by=SortField.TITLE, order=SortOrder.ASC)
+        result, count = await service.get_books(sort_by=SortField.TITLE, order=SortOrder.ASC)
 
         assert [b.title for b in result] == ["Apple", "Zebra"]
+
+    async def test_delegates_pagination_params_to_repository(
+        self, service: BookService, repository: BookRepository
+    ) -> None:
+        for i in range(10):
+            repository.add(make_book(title=f"Book {i:02d}"))
+
+        result, count = await service.get_books(limit=3, offset=4, sort_by=SortField.TITLE)
+
+        assert len(result) == 3
+        # With offset 4, we expect books starting from the 5th (index 4)
+        assert result[0].title == "Book 04"
+        assert result[1].title == "Book 05"
+        assert result[2].title == "Book 06"
 
     async def test_returns_book_instances(
         self, service: BookService, repository: BookRepository
     ) -> None:
         repository.add(make_book())
 
-        result = await service.get_books()
+        result, count = await service.get_books()
 
         assert all(isinstance(b, Book) for b in result)
 
