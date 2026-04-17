@@ -12,7 +12,7 @@ from app.database import Base
 from app.dependencies import get_book_repository, get_book_service
 from app.main import app
 from app.models.book import Book, BookStatus, SortField, SortOrder
-from app.repository.book_repository import _SORT_ATTR, BookRepository
+from app.repository.book_repository import _SORT_ATTR, BookRepository, Cursor
 from app.services.book_service import BookService
 
 
@@ -30,8 +30,9 @@ class MockBookRepository:
         sort_by: SortField | None = None,
         order: SortOrder = SortOrder.ASC,
         limit: int = 10,
-        offset: int = 0,
-    ) -> tuple[list[Book], int]:
+        offset: int | None = 0,
+        cursor: Cursor | None = None,
+    ) -> tuple[list[Book], int] | tuple[list[Book], int, Cursor]:
         """Return books from storage, optionally filtered and sorted.
 
         Args:
@@ -41,9 +42,12 @@ class MockBookRepository:
             order: Sort direction, ascending by default.
             limit: Maximum number of books to return.
             offset: Number of books to skip before starting to return.
+            cursor: cursor for cursor based pagination. Ignored if offset is not None.
+                    If cursor is None - starts from beginning.
 
         Returns:
-            A tuple of (filtered, sorted, and paginated list of Book records, total count).
+            A tuple of (filtered, sorted, and paginated list of Book records, total count) for offset mode.
+            A tuple of (records, total count, next_cursor) for cursor mode.
         """
         books = list(self._books.values())
 
@@ -53,11 +57,46 @@ class MockBookRepository:
         if filter_author is not None:
             books = [b for b in books if b.author == filter_author]
 
+        total_items = len(books)
+
         if sort_by is not None:
             attr = _SORT_ATTR[sort_by]
-            books = sorted(books, key=lambda b: getattr(b, attr), reverse=order == SortOrder.DESC)
+            books = sorted(
+                books,
+                key=lambda b: (getattr(b, attr), b.id),
+                reverse=order == SortOrder.DESC,
+            )
+        else:
+            books = sorted(books, key=lambda b: b.id, reverse=order == SortOrder.DESC)
 
-        return books[offset : offset + limit], len(self._books)
+        if offset is None:  # cursor mode
+            start_index = 0
+            if cursor:
+                last_value = cursor["value"]
+                last_id = cursor["id"]
+                
+                for i, b in enumerate(books):
+                    b_value = getattr(b, _SORT_ATTR[sort_by]) if sort_by else b.id
+                    if order == SortOrder.ASC:
+                        if (b_value, b.id) > (last_value, last_id):
+                            start_index = i
+                            break
+                    else:
+                        if (b_value, b.id) < (last_value, last_id):
+                            start_index = i
+                            break
+                else:
+                    start_index = len(books)
+
+            items = books[start_index : start_index + limit]
+            next_cursor = None
+            if items:
+                last_item = items[-1]
+                last_value = getattr(last_item, _SORT_ATTR[sort_by]) if sort_by else last_item.id
+                next_cursor = Cursor(value=last_value, id=last_item.id)
+            return items, total_items, next_cursor
+
+        return books[offset : offset + limit], total_items
 
     def get_by_id(self, book_id: UUID) -> Book | None:
         """Find a book by its unique identifier.

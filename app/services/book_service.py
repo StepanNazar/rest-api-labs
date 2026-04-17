@@ -3,7 +3,7 @@
 from uuid import UUID
 
 from app.models.book import Book, BookStatus, SortField, SortOrder
-from app.repository.book_repository import BookRepository
+from app.repository.book_repository import BookRepository, Cursor
 from app.schemas.book import BookCreate
 from app.services.exceptions import BookNotFoundError
 
@@ -22,8 +22,9 @@ class BookService:
         sort_by: SortField | None = None,
         order: SortOrder = SortOrder.ASC,
         limit: int = 10,
-        offset: int = 0,
-    ) -> tuple[list[Book], int]:
+        offset: int | None = 0,
+        cursor: Cursor | None = None,
+    ) -> tuple[list[Book], int] | tuple[list[Book], int, Cursor]:
         """Retrieve books with optional filtering, sorting and pagination.
 
         Args:
@@ -33,9 +34,12 @@ class BookService:
             order: Sort direction, ascending by default.
             limit: Maximum number of books to return.
             offset: Number of books to skip.
+            cursor: cursor for cursor based pagination. Ignored if offset is not None.
+                    If cursor is None - starts from beginning.
 
         Returns:
-            A tuple of (list of Book objects, total count).
+            A tuple of (list of Book objects, total count) for offset mode.
+            A tuple of (list of Book objects, total count, next_cursor) for cursor mode.
         """
         return self._repository.get_all(
             filter_status=filter_status,
@@ -44,6 +48,7 @@ class BookService:
             order=order,
             limit=limit,
             offset=offset,
+            cursor=cursor
         )
 
     async def get_book(self, book_id: UUID) -> Book:

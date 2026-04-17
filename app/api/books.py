@@ -1,5 +1,6 @@
 """API endpoints for managing library books."""
-
+import base64
+import json
 from typing import Annotated
 from urllib.parse import urlencode
 from uuid import UUID
@@ -13,9 +14,27 @@ from app.models.book import Book, BookStatus, SortField, SortOrder
 from app.schemas.book import BookCollectionResponse, BookCreate, BookResponse
 from app.services.book_service import BookService
 from app.services.exceptions import BookNotFoundError
+from app.repository.book_repository import Cursor
 
 router = APIRouter(prefix="/books", tags=["books"])
 
+def encode_cursor(data: Cursor | None) -> str | None:
+    if data is None:
+        return None
+    data_dict = data.copy()
+    for key, value in data_dict.items():
+        if isinstance(value, UUID):
+            data_dict[key] = str(value)
+    return base64.urlsafe_b64encode(json.dumps(data_dict).encode()).decode()
+
+def decode_cursor(cursor: str) -> Cursor:
+    data = json.loads(base64.urlsafe_b64decode(cursor.encode()).decode())
+    for key, value in data.items():
+        try:
+            data[key] = UUID(value)
+        except Exception:
+            pass
+    return data
 
 @router.get(
     "/",
@@ -31,7 +50,8 @@ async def get_books(
     sort_by: SortField | None = None,
     order: SortOrder = SortOrder.ASC,
     limit: int = Query(10, ge=1, le=100),
-    offset: int = Query(0, ge=0),
+    offset: int | None = Query(None, ge=0),
+    cursor: str | None = None,
 ) -> BookCollectionResponse:
     """Return books, optionally filtered, sorted and paginated.
 
@@ -44,18 +64,35 @@ async def get_books(
         order: Sort direction (asc or desc).
         limit: Maximum number of books to return.
         offset: Number of books to skip.
+        cursor: cursor for cursor based pagination. Ignored if offset is not None.
+                If cursor is None - starts from beginning.
 
     Returns:
         A collection of Book objects with pagination metadata.
     """
-    items, total = await service.get_books(
+    if cursor is not None:
+        try:
+            cursor = decode_cursor(cursor)
+        except Exception:
+            raise HTTPException(
+                status_code=http_status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Invalid cursor value",
+            )
+    result = await service.get_books(
         filter_status=status,
         filter_author=author,
         sort_by=sort_by,
         order=order,
         limit=limit,
         offset=offset,
+        cursor=cursor,
     )
+    next_cursor = None
+    if offset is None:
+        items, total, next_cursor = result
+        next_cursor = encode_cursor(next_cursor)
+    else:
+        items, total = result
     result = BookCollectionResponse(
         **{
             "items": items,
@@ -65,21 +102,27 @@ async def get_books(
             "count": len(items),
             "next_offset": None,
             "prev_offset": None,
+            "next_cursor": next_cursor,
         }
     )
     params = dict(request.query_params)
     next_params = None
     prev_params = None
-    next_offset = offset + limit
-    if next_offset < total:
-        result.next_offset = next_offset
+    if offset is not None:
+        next_offset = offset + limit
+        if next_offset < total:
+            result.next_offset = next_offset
+            next_params = params.copy()
+            next_params["offset"] = str(next_offset)
+        if offset > 0:
+            prev_offset = max(offset - limit, 0)
+            result.prev_offset = prev_offset
+            prev_params = params.copy()
+            prev_params["offset"] = str(prev_offset)
+    elif next_cursor:
         next_params = params.copy()
-        next_params["offset"] = str(next_offset)
-    if offset > 0:
-        prev_offset = max(offset - limit, 0)
-        result.prev_offset = prev_offset
-        prev_params = params.copy()
-        prev_params["offset"] = str(prev_offset)
+        next_params["cursor"] = next_cursor
+
     for link in result.links:
         if "self" in link.rel:
             query_str = urlencode(params, doseq=True)
