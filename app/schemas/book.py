@@ -69,23 +69,27 @@ class BookCollectionResponse(SirenHyperModel):
 
     items: Sequence[BookResponse]
     limit: int
-    offset: int
+    offset: int | None
     total: int
     count: int
     next_offset: int | None
     prev_offset: int | None
+    next_cursor: str | None
 
     links: Sequence[SirenLinkFor] = (
         SirenLinkFor("get_books", rel=["self"]),
         SirenLinkFor(
             "get_books",
             rel=["next"],
-            condition=lambda values: values["offset"] + values["limit"] < values["total"],
+            condition=lambda values: (
+                (values.get("offset") is not None and values["offset"] + values["limit"] < values["total"])
+                or values.get("next_cursor") is not None
+            ),
         ),
         SirenLinkFor(
             "get_books",
             rel=["prev"],
-            condition=lambda values: values["offset"] > 0,
+            condition=lambda values: values.get("offset") is not None and values["offset"] > 0,
         ),
     )
     actions: Sequence[SirenActionFor] = (

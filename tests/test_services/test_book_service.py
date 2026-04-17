@@ -69,6 +69,27 @@ class TestGetBooks:
         assert result[1].title == "Book 05"
         assert result[2].title == "Book 06"
 
+    async def test_delegates_cursor_to_repository(
+        self, service: BookService, repository: BookRepository
+    ) -> None:
+        for i in range(5):
+            repository.add(make_book(title=f"Book {i:02d}"))
+
+        items, total, cursor = await service.get_books(
+            limit=2, offset=None, sort_by=SortField.TITLE
+        )
+
+        assert len(items) == 2
+        assert cursor is not None
+        
+        items2, total2, cursor2 = await service.get_books(
+            limit=2, offset=None, cursor=cursor, sort_by=SortField.TITLE
+        )
+        
+        assert len(items2) == 2
+        assert items2[0].title == "Book 02"
+        assert items2[1].title == "Book 03"
+
     async def test_returns_book_instances(
         self, service: BookService, repository: BookRepository
     ) -> None:

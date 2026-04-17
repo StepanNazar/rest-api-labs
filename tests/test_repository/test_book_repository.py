@@ -187,6 +187,128 @@ class TestGetAll:
         assert result[0].title == "Book 2"
         assert result[1].title == "Book 3"
 
+    def test_returns_next_cursor_on_first_page_in_cursor_mode(
+        self, in_memory_book_repository: BookRepository
+    ) -> None:
+        for i in range(5):
+            in_memory_book_repository.add(make_book(title=f"Book {i:02d}"))
+
+        items, total, cursor = in_memory_book_repository.get_all(
+            limit=2, offset=None, sort_by=SortField.TITLE, order=SortOrder.ASC
+        )
+
+        assert len(items) == 2
+        assert items[0].title == "Book 00"
+        assert items[1].title == "Book 01"
+        assert cursor is not None
+        assert cursor["value"] == "Book 01"
+        assert cursor["id"] == items[1].id
+
+    def test_fetches_subsequent_page_using_cursor(
+        self, in_memory_book_repository: BookRepository
+    ) -> None:
+        for i in range(5):
+            in_memory_book_repository.add(make_book(title=f"Book {i:02d}"))
+
+        _, _, first_cursor = in_memory_book_repository.get_all(
+            limit=2, offset=None, sort_by=SortField.TITLE, order=SortOrder.ASC
+        )
+        items, total, second_cursor = in_memory_book_repository.get_all(
+            limit=2, offset=None, cursor=first_cursor, sort_by=SortField.TITLE, order=SortOrder.ASC
+        )
+
+        assert len(items) == 2
+        assert items[0].title == "Book 02"
+        assert items[1].title == "Book 03"
+        assert second_cursor is not None
+        assert second_cursor["value"] == "Book 03"
+
+    def test_returns_none_cursor_on_last_page(
+        self, in_memory_book_repository: BookRepository
+    ) -> None:
+        for i in range(3):
+            in_memory_book_repository.add(make_book(title=f"Book {i:02d}"))
+
+        items, total, cursor = in_memory_book_repository.get_all(
+            limit=5, offset=None, sort_by=SortField.TITLE, order=SortOrder.ASC
+        )
+
+        assert len(items) == 3
+        assert cursor is not None # It returns the cursor of the last item found
+        
+        # To actually get None, we need to request after the last item
+        items, total, next_cursor = in_memory_book_repository.get_all(
+            limit=5, offset=None, cursor=cursor, sort_by=SortField.TITLE, order=SortOrder.ASC
+        )
+        
+        assert items == []
+        assert next_cursor is None
+
+    def test_cursor_pagination_with_descending_order(
+        self, in_memory_book_repository: BookRepository
+    ) -> None:
+        for i in range(5):
+            in_memory_book_repository.add(make_book(title=f"Book {i:02d}"))
+
+        items, total, cursor = in_memory_book_repository.get_all(
+            limit=2, offset=None, sort_by=SortField.TITLE, order=SortOrder.DESC
+        )
+
+        assert items[0].title == "Book 04"
+        assert items[1].title == "Book 03"
+        
+        items2, total2, cursor2 = in_memory_book_repository.get_all(
+            limit=2, offset=None, cursor=cursor, sort_by=SortField.TITLE, order=SortOrder.DESC
+        )
+        
+        assert items2[0].title == "Book 02"
+        assert items2[1].title == "Book 01"
+
+    def test_cursor_pagination_with_year_sort(
+        self, in_memory_book_repository: BookRepository
+    ) -> None:
+        in_memory_book_repository.add(make_book(title="B1", publication_year=2000))
+        in_memory_book_repository.add(make_book(title="B2", publication_year=2000))
+        in_memory_book_repository.add(make_book(title="B3", publication_year=2001))
+
+        # Sort by year, B1 and B2 have same year, so ID tie-breaker is used
+        items, total, cursor = in_memory_book_repository.get_all(
+            limit=1, offset=None, sort_by=SortField.YEAR, order=SortOrder.ASC
+        )
+        
+        assert len(items) == 1
+        first_book = items[0]
+        
+        items2, total2, cursor2 = in_memory_book_repository.get_all(
+            limit=1, offset=None, cursor=cursor, sort_by=SortField.YEAR, order=SortOrder.ASC
+        )
+        
+        assert len(items2) == 1
+        assert items2[0].id != first_book.id
+        assert items2[0].publication_year >= first_book.publication_year
+
+    def test_cursor_pagination_with_filters(
+        self, in_memory_book_repository: BookRepository
+    ) -> None:
+        for i in range(10):
+            status = BookStatus.AVAILABLE if i % 2 == 0 else BookStatus.ISSUED
+            in_memory_book_repository.add(make_book(title=f"Book {i:02d}", status=status))
+
+        items, total, cursor = in_memory_book_repository.get_all(
+            limit=2, offset=None, filter_status=BookStatus.AVAILABLE, sort_by=SortField.TITLE
+        )
+
+        assert len(items) == 2
+        assert items[0].title == "Book 00"
+        assert items[1].title == "Book 02"
+        
+        items2, total2, cursor2 = in_memory_book_repository.get_all(
+            limit=2, offset=None, cursor=cursor, filter_status=BookStatus.AVAILABLE, sort_by=SortField.TITLE
+        )
+        
+        assert items2[0].title == "Book 04"
+        assert items2[1].title == "Book 06"
+
 
 class TestAdd:
     def test_returns_the_same_book_that_was_added(

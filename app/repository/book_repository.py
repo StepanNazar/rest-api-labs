@@ -1,8 +1,8 @@
 """Repository layer responsible for storage of books in PostgreSQL."""
-
+from typing import TypedDict, Any
 from uuid import UUID
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, tuple_
 from sqlalchemy.orm import Session
 
 from app.models.book import Book, BookStatus, SortField, SortOrder
@@ -12,6 +12,9 @@ _SORT_ATTR: dict[SortField, str] = {
     SortField.YEAR: "publication_year",
 }
 
+class Cursor(TypedDict):
+    value: Any
+    id: UUID
 
 class BookRepository:
     """Manages library books in a PostgreSQL database using SQLAlchemy."""
@@ -27,8 +30,9 @@ class BookRepository:
         sort_by: SortField | None = None,
         order: SortOrder = SortOrder.ASC,
         limit: int = 10,
-        offset: int = 0,
-    ) -> tuple[list[Book], int]:
+        offset: int | None = 0,
+        cursor: Cursor | None = None,
+    ) -> tuple[list[Book], int] | tuple[list[Book], int, Cursor]:
         """Return books from storage, optionally filtered and sorted with pagination.
 
         Args:
@@ -38,9 +42,12 @@ class BookRepository:
             order: Sort direction, ascending by default.
             limit: Maximum number of books to return.
             offset: Number of books to skip before starting to return.
+            cursor: cursor for cursor based pagination. Ignored if offset is not None.
+                    If cursor is None - starts from beginning.
 
         Returns:
-            A tuple of (filtered, sorted, and paginated list of Book records, total count).
+            A tuple of (filtered, sorted, and paginated list of Book records, total count) for offset mode.
+            A tuple of (records, total count, next_cursor) for cursor mode.
         """
         stmt = select(Book)
         count_stmt = select(func.count()).select_from(Book)
@@ -57,11 +64,39 @@ class BookRepository:
 
         if sort_by is not None:
             attr_name = _SORT_ATTR[sort_by]
-            column = getattr(Book, attr_name)
-            if order == SortOrder.DESC:
-                stmt = stmt.order_by(column.desc())
-            else:
-                stmt = stmt.order_by(column.asc())
+            sort_column = getattr(Book, attr_name)
+        else:
+            sort_column = Book.id
+
+        # tie-breaker
+        id_column = Book.id
+
+        if order == SortOrder.DESC:
+            order_by = [sort_column.desc(), id_column.desc()]
+        else:
+            order_by = [sort_column.asc(), id_column.asc()]
+        stmt = stmt.order_by(*order_by)
+
+        if offset is None: # cursor mode
+            if cursor:
+                last_value = cursor["value"]
+                last_id = cursor["id"]
+
+                if order == SortOrder.ASC:
+                    condition = tuple_(sort_column, id_column) > (last_value, last_id)
+                else:
+                    condition = tuple_(sort_column, id_column) < (last_value, last_id)
+                stmt = stmt.where(condition)
+            
+            stmt = stmt.limit(limit)
+
+            items = list(self._db.scalars(stmt).all())
+            next_cursor = None
+            if items:
+                last_item = items[-1]
+                last_value = getattr(last_item, sort_column.key)
+                next_cursor = Cursor(value=last_value, id=last_item.id)
+            return items, total_items, next_cursor
 
         stmt = stmt.limit(limit).offset(offset)
 
@@ -72,9 +107,7 @@ class BookRepository:
         """Find a book by its unique identifier.
 
         Args:
-            book_id: The UUID ocount_stmt = count_stmt.where(Book.author == filter_author)
-
-        total_items = self._db.scalarf the book to retrieve.
+            book_id: The UUID of the book to retrieve.
 
         Returns:
             The matching Book if found, otherwise None.

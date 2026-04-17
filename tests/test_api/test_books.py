@@ -59,6 +59,48 @@ class TestGetAllBooks:
         assert items[1]["properties"]["title"] == "Book 04"
         assert items[2]["properties"]["title"] == "Book 05"
 
+    def test_returns_books_with_cursor_pagination(self, client: TestClient) -> None:
+        for i in range(5):
+            _post_book(client, {"title": f"Book {i:02d}"})
+
+        # offset=None (default in my implementation if not provided) triggers cursor mode
+        params = {"limit": 2, "sort_by": "title", "order": "asc"}
+        response = client.get("/books/", params=params)
+
+        assert response.status_code == 200
+        props = response.json()["properties"]
+        assert len(props["items"]) == 2
+        assert props["next_cursor"] is not None
+        
+        # Use the cursor for the next page
+        next_cursor = props["next_cursor"]
+        params2 = {"limit": 2, "cursor": next_cursor, "sort_by": "title", "order": "asc"}
+        response2 = client.get("/books/", params=params2)
+        
+        assert response2.status_code == 200
+        props2 = response2.json()["properties"]
+        assert len(props2["items"]) == 2
+        assert props2["items"][0]["properties"]["title"] == "Book 02"
+
+    def test_next_link_contains_cursor_in_cursor_mode(self, client: TestClient) -> None:
+        for i in range(5):
+            _post_book(client, {"title": f"Book {i:02d}"})
+
+        params = {"limit": 2, "sort_by": "title", "order": "asc"}
+        response = client.get("/books/", params=params)
+        
+        next_link = next(link for link in response.json()["links"] if "next" in link["rel"])
+        assert "cursor=" in next_link["href"]
+        assert "offset=" not in next_link["href"]
+
+    def test_does_not_return_next_cursor_when_using_offset(self, client: TestClient) -> None:
+        _post_book(client)
+        
+        response = client.get("/books/", params={"offset": 0})
+        
+        assert response.status_code == 200
+        assert response.json()["properties"]["next_cursor"] is None
+
     def test_returns_422_for_invalid_limit_too_small(self, client: TestClient) -> None:
         response = client.get("/books/", params={"limit": 0})
 
