@@ -5,14 +5,15 @@ from uuid import UUID, uuid4
 
 import pytest
 from fastapi.testclient import TestClient
+from mongomock_motor import AsyncMongoMockClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
-from app.dependencies import get_book_repository, get_book_service
+from app.dependencies import get_sql_book_repository, get_book_service
 from app.main import app
-from app.models.book import Book, BookStatus, SortField, SortOrder
-from app.repository.book_repository import _SORT_ATTR, BookRepository, Cursor
+from app.dtos.books import Book, BookStatus, SortField, SortOrder
+from app.repository.book_repository import _SORT_ATTR, BookRepository, Cursor, MongoBookRepository, SQLBookRepository
 from app.services.book_service import BookService
 
 
@@ -22,7 +23,7 @@ class MockBookRepository:
     def __init__(self) -> None:
         self._books: dict[UUID, Book] = {}
 
-    def get_all(
+    async def get_all(
         self,
         *,
         filter_status: BookStatus | None = None,
@@ -74,7 +75,7 @@ class MockBookRepository:
             if cursor:
                 last_value = cursor["value"]
                 last_id = cursor["id"]
-                
+
                 for i, b in enumerate(books):
                     b_value = getattr(b, _SORT_ATTR[sort_by]) if sort_by else b.id
                     if order == SortOrder.ASC:
@@ -98,7 +99,7 @@ class MockBookRepository:
 
         return books[offset : offset + limit], total_items
 
-    def get_by_id(self, book_id: UUID) -> Book | None:
+    async def get_by_id(self, book_id: UUID) -> Book | None:
         """Find a book by its unique identifier.
 
         Args:
@@ -109,20 +110,21 @@ class MockBookRepository:
         """
         return self._books.get(book_id)
 
-    def add(self, book: Book) -> Book:
+    async def add(self, book: Book) -> Book:
         """Assign a new UUID, persist the book, and return it.
 
         Args:
-            book: The Book record to store. Its id will be overwritten with a new UUID.
+            book: The Book record to store. If its id is None, a new UUID will be generated.
 
         Returns:
             The stored Book record with the generated UUID.
         """
-        book.id = uuid4()
+        if book.id is None:
+            book.id = uuid4()
         self._books[book.id] = book
         return book
 
-    def delete(self, book_id: UUID) -> None:
+    async def delete(self, book_id: UUID) -> None:
         """Remove a book by ID; does nothing if the book does not exist.
 
         Args:
@@ -138,12 +140,28 @@ def repository() -> MockBookRepository:
 
 
 @pytest.fixture()
-def in_memory_book_repository() -> BookRepository:
+def sql_book_repository() -> SQLBookRepository:
     """Create a BookRepository backed by an in-memory SQLite database."""
     engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     Session = sessionmaker(bind=engine) # noqa: N806
-    return BookRepository(Session())
+    return SQLBookRepository(Session())
+
+
+@pytest.fixture()
+def mongo_book_repository() -> MongoBookRepository:
+    """Create a stub MongoBookRepository."""
+    client = AsyncMongoMockClient()
+    return MongoBookRepository(client.test_db)
+
+
+@pytest.fixture(params=["sql", "mongo"])
+def book_repository(request, sql_book_repository, mongo_book_repository):
+    """Parametrized fixture that returns either a SQL or Mongo repository."""
+    if request.param == "sql":
+        return sql_book_repository
+    if request.param == "mongo":
+        return mongo_book_repository
 
 
 @pytest.fixture()
@@ -156,6 +174,6 @@ def service(repository: BookRepository) -> BookService:
 def client(service: BookService) -> Generator[TestClient, None, None]:
     """Return a TestClient with all dependencies overridden to use isolated state."""
     app.dependency_overrides[get_book_service] = lambda: service
-    app.dependency_overrides[get_book_repository] = lambda: service._repository
+    app.dependency_overrides[get_sql_book_repository] = lambda: service._repository
     yield TestClient(app)
     app.dependency_overrides.clear()

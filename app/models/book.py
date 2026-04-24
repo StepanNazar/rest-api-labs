@@ -1,36 +1,15 @@
-"""Book domain model, status and query enumerations."""
+"""Book SQLAlchemy model."""
 
-from enum import StrEnum
 from uuid import UUID, uuid4
 
 import sqlalchemy as sa
 import sqlalchemy.orm as so
 
 from app.database import Base
+from dtos.books import BookStatus
 
 
-class BookStatus(StrEnum):
-    """Represents the availability status of a book in the library."""
-
-    AVAILABLE = "available"
-    ISSUED = "issued"
-
-
-class SortField(StrEnum):
-    """Fields by which books can be sorted."""
-
-    TITLE = "title"
-    YEAR = "year"
-
-
-class SortOrder(StrEnum):
-    """Direction of sorting."""
-
-    ASC = "asc"
-    DESC = "desc"
-
-
-class Book(Base):
+class BookSQLAlchemy(Base):
     """SQLAlchemy model for a library book."""
 
     __tablename__ = "books"

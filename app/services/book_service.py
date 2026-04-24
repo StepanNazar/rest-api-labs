@@ -2,7 +2,7 @@
 
 from uuid import UUID
 
-from app.models.book import Book, BookStatus, SortField, SortOrder
+from app.dtos.books import Book, BookStatus, SortField, SortOrder
 from app.repository.book_repository import BookRepository, Cursor
 from app.schemas.book import BookCreate
 from app.services.exceptions import BookNotFoundError
@@ -41,14 +41,14 @@ class BookService:
             A tuple of (list of Book objects, total count) for offset mode.
             A tuple of (list of Book objects, total count, next_cursor) for cursor mode.
         """
-        return self._repository.get_all(
+        return await self._repository.get_all(
             filter_status=filter_status,
             filter_author=filter_author,
             sort_by=sort_by,
             order=order,
             limit=limit,
             offset=offset,
-            cursor=cursor
+            cursor=cursor,
         )
 
     async def get_book(self, book_id: UUID) -> Book:
@@ -63,7 +63,7 @@ class BookService:
         Raises:
             BookNotFoundError: If no book with the given ID exists.
         """
-        book = self._repository.get_by_id(book_id)
+        book = await self._repository.get_by_id(book_id)
         if book is None:
             raise BookNotFoundError(book_id)
         return book
@@ -83,8 +83,9 @@ class BookService:
             description=data.description,
             status=data.status,
             publication_year=data.publication_year,
+            id=None,
         )
-        return self._repository.add(book)
+        return await self._repository.add(book)
 
     async def delete_book(self, book_id: UUID) -> None:
         """Delete a book by ID.
@@ -92,4 +93,4 @@ class BookService:
         Args:
             book_id: The UUID of the book to delete.
         """
-        self._repository.delete(book_id)
+        await self._repository.delete(book_id)

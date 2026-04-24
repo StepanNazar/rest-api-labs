@@ -6,9 +6,9 @@ from uuid import UUID
 from fastapi_hypermodel import SirenActionFor, SirenHyperModel, SirenLinkFor
 from pydantic import BaseModel, Field
 
-from app.models.book import BookStatus, SortField, SortOrder
+from app.dtos.books import BookStatus, SortField, SortOrder
 
-__all__ = ["BookCreate", "BookResponse", "SortField", "SortOrder"]
+__all__ = ["BookCreate", "BookResponse"]
 
 
 class BookCreate(BaseModel):

@@ -2,7 +2,7 @@
 
 from uuid import UUID, uuid4
 
-from app.models.book import Book, BookStatus
+from app.dtos.books import Book, BookStatus
 
 
 def make_book(
@@ -14,10 +14,10 @@ def make_book(
     status: BookStatus = BookStatus.AVAILABLE,
     publication_year: int = 2024,
 ) -> Book:
-    """Create a Book dataclass instance with sensible defaults.
+    """Create a Book DTO instance with sensible defaults.
 
     Args:
-        book_id: Optional UUID; a random one is generated if not provided.
+        book_id: Optional UUID.
         title: Book title.
         author: Book author.
         description: Short description.
@@ -28,7 +28,7 @@ def make_book(
         A Book instance.
     """
     return Book(
-        id=book_id or uuid4(),
+        id=book_id,
         title=title,
         author=author,
         description=description,
