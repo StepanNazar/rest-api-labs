@@ -3,14 +3,14 @@
 Service tests verify that the service correctly delegates to the repository
 and performs its own responsibilities (exception raising).
 UUID generation is owned by the repository; tests here confirm the behavior end-to-end.
-Filtering/sorting logic is fully tested in test_book_repository.py.
+Filtering/sorting logic is fully tested in test_book_await repository.py.
 """
 
 from uuid import UUID, uuid4
 
 import pytest
 
-from app.models.book import Book, BookStatus, SortField, SortOrder
+from app.dtos.books import Book, BookStatus, SortField, SortOrder
 from app.repository.book_repository import BookRepository
 from app.schemas.book import BookCreate
 from app.services.book_service import BookService
@@ -27,8 +27,8 @@ class TestGetBooks:
     async def test_returns_all_books_when_no_filters_are_applied(
         self, service: BookService, repository: BookRepository
     ) -> None:
-        repository.add(make_book(title="Book A"))
-        repository.add(make_book(title="Book B"))
+        await repository.add(make_book(title="Book A"))
+        await repository.add(make_book(title="Book B"))
 
         result, count = await service.get_books()
 
@@ -37,8 +37,8 @@ class TestGetBooks:
     async def test_delegates_filter_status_to_repository(
         self, service: BookService, repository: BookRepository
     ) -> None:
-        repository.add(make_book(title="Available", status=BookStatus.AVAILABLE))
-        repository.add(make_book(title="Issued", status=BookStatus.ISSUED))
+        await repository.add(make_book(title="Available", status=BookStatus.AVAILABLE))
+        await repository.add(make_book(title="Issued", status=BookStatus.ISSUED))
 
         result, count = await service.get_books(filter_status=BookStatus.AVAILABLE)
 
@@ -48,8 +48,8 @@ class TestGetBooks:
     async def test_delegates_sort_params_to_repository(
         self, service: BookService, repository: BookRepository
     ) -> None:
-        repository.add(make_book(title="Zebra"))
-        repository.add(make_book(title="Apple"))
+        await repository.add(make_book(title="Zebra"))
+        await repository.add(make_book(title="Apple"))
 
         result, count = await service.get_books(sort_by=SortField.TITLE, order=SortOrder.ASC)
 
@@ -59,7 +59,7 @@ class TestGetBooks:
         self, service: BookService, repository: BookRepository
     ) -> None:
         for i in range(10):
-            repository.add(make_book(title=f"Book {i:02d}"))
+            await repository.add(make_book(title=f"Book {i:02d}"))
 
         result, count = await service.get_books(limit=3, offset=4, sort_by=SortField.TITLE)
 
@@ -73,7 +73,7 @@ class TestGetBooks:
         self, service: BookService, repository: BookRepository
     ) -> None:
         for i in range(5):
-            repository.add(make_book(title=f"Book {i:02d}"))
+            await repository.add(make_book(title=f"Book {i:02d}"))
 
         items, total, cursor = await service.get_books(
             limit=2, offset=None, sort_by=SortField.TITLE
@@ -93,7 +93,7 @@ class TestGetBooks:
     async def test_returns_book_instances(
         self, service: BookService, repository: BookRepository
     ) -> None:
-        repository.add(make_book())
+        await repository.add(make_book())
 
         result, count = await service.get_books()
 
@@ -105,7 +105,7 @@ class TestGetBook:
         self, service: BookService, repository: BookRepository
     ) -> None:
         book = make_book(title="Found Book")
-        repository.add(book)
+        await repository.add(book)
 
         result = await service.get_book(book.id)
 
@@ -151,7 +151,7 @@ class TestCreateBook:
 
         created = await service.create_book(payload)
 
-        assert repository.get_by_id(created.id) is not None
+        assert await repository.get_by_id(created.id) is not None
 
     async def test_each_created_book_receives_a_unique_id(self, service: BookService) -> None:
         payload = BookCreate(
@@ -190,11 +190,11 @@ class TestDeleteBook:
         self, service: BookService, repository: BookRepository
     ) -> None:
         book = make_book()
-        repository.add(book)
+        await repository.add(book)
 
         await service.delete_book(book.id)
 
-        assert repository.get_by_id(book.id) is None
+        assert await repository.get_by_id(book.id) is None
 
     async def test_does_not_raise_when_book_does_not_exist(self, service: BookService) -> None:
         await service.delete_book(uuid4())
@@ -203,7 +203,7 @@ class TestDeleteBook:
         self, service: BookService, repository: BookRepository
     ) -> None:
         book = make_book()
-        repository.add(book)
+        await repository.add(book)
 
         await service.delete_book(book.id)
         await service.delete_book(book.id)

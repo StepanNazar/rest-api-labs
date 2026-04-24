@@ -9,6 +9,7 @@ from fastapi_hypermodel import SirenHyperModel
 
 from app.api import router as books_router
 from app.database import Base, engine
+from app.dependencies import get_sql_book_repository, get_mongo_book_repository
 
 
 @asynccontextmanager
@@ -16,6 +17,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Startup and shutdown events."""
     # Create tables if they don't exist
     Base.metadata.create_all(bind=engine)
+    app.dependency_overrides[get_sql_book_repository] = get_mongo_book_repository
     yield
 
 

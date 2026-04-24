@@ -10,7 +10,7 @@ from fastapi import status as http_status
 from fastapi_hypermodel import SirenResponse, UrlType
 
 from app.dependencies import get_book_service
-from app.models.book import Book, BookStatus, SortField, SortOrder
+from app.dtos.books import BookStatus, SortField, SortOrder, Book
 from app.schemas.book import BookCollectionResponse, BookCreate, BookResponse
 from app.services.book_service import BookService
 from app.services.exceptions import BookNotFoundError
