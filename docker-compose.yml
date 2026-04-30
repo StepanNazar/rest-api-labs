@@ -41,7 +41,7 @@ services:
       MONGO_INITDB_ROOT_PASSWORD: password
       MONGO_INITDB_DATABASE: books
     volumes:
-      - mongo_data:/var/lib/mongo/data
+      - mongo_data:/data/db
     ports:
       - "27017:27017"
     command: mongod --quiet --logpath /dev/null
