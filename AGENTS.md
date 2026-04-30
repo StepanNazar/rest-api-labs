@@ -6,7 +6,7 @@ Read this file at the start of every session. **Keep this file concise** — exp
 
 ## Project Overview
 
-A **Library REST API** built with FastAPI. Manages the `Book` entity with in-memory storage.
+A **Library REST API** built with FastAPI. Manages the `Book` entity with database storage (PostgreSQL or MongoDB).
 
 ### Technology Stack
 
@@ -15,6 +15,9 @@ A **Library REST API** built with FastAPI. Manages the `Book` entity with in-mem
 | **Python 3.12+** | Language |
 | **FastAPI** | Web framework |
 | **Pydantic v2** | Request/response validation and serialization |
+| **SQLAlchemy** | Database ORM (PostgreSQL) |
+| **Pydantic-Mongo** | MongoDB repository support |
+| **FastAPI Hypermodel** | Siren hypermedia support |
 | **uv** | Package manager and virtual environment |
 | **ruff** | Linter and formatter |
 | **mypy** | Static type checker (strict mode) |
@@ -25,37 +28,42 @@ A **Library REST API** built with FastAPI. Manages the `Book` entity with in-mem
 
 ```
 .
-├── main.py                          # FastAPI app entry point
-├── dependencies.py                  # FastAPI dependency injection providers
-├── models/
-│   └── book.py                      # Domain model: Book dataclass, BookStatus, SortField, SortOrder
-├── schemas/
-│   └── book.py                      # Pydantic schemas: BookCreate, BookResponse
-├── repository/
-│   └── book_repository.py           # In-memory CRUD + filtering/sorting (dict[UUID, Book])
-├── services/
-│   ├── book_service.py              # Business logic (thin orchestration layer)
-│   └── exceptions.py                # Domain exceptions (BookNotFoundError)
-├── api/
-│   └── books.py                     # HTTP endpoints — catches domain exceptions, maps to HTTP
+├── app/
+│   ├── main.py                      # FastAPI app entry point
+│   ├── database.py                  # Database configuration (SQLAlchemy/Mongo)
+│   ├── dependencies.py              # FastAPI dependency injection providers
+│   ├── api/
+│   │   └── books.py                 # HTTP endpoints — catches domain exceptions, maps to HTTP
+│   ├── dtos/
+│   │   └── books.py                 # Pydantic models for domain data & enums
+│   ├── models/
+│   │   └── book.py                  # SQLAlchemy database models
+│   ├── repository/
+│   │   └── book_repository.py       # Storage logic (PostgreSQL/SQLAlchemy and MongoDB)
+│   ├── schemas/
+│   │   └── book.py                  # Hypermedia-aware Pydantic schemas (Siren)
+│   └── services/
+│       ├── book_service.py          # Business logic (thin orchestration layer)
+│       └── exceptions.py            # Domain exceptions (BookNotFoundError)
 └── tests/
     ├── conftest.py                  # Shared fixtures: repository, service, client
     ├── helpers.py                   # Shared test utilities (make_book)
     ├── test_api/
     │   └── test_books.py            # HTTP-layer tests (status codes, validation, serialization)
     ├── test_repository/
-    │   └── test_book_repository.py  # Unit tests for BookRepository (all filtering/sorting logic)
+    │   └── test_book_repository.py  # Unit tests for repositories (filtering, sorting, pagination)
     └── test_services/
-        └── test_book_service.py     # Unit tests for BookService (delegation + UUID/exception behavior)
+        └── test_book_service.py     # Unit tests for BookService (delegation + exception behavior)
 ```
 
 ### Layer Responsibilities
 
-- **models/** — Pure domain types. No framework dependencies. `SortField`/`SortOrder` enums live here because they describe domain query capabilities.
-- **schemas/** — Pydantic models for API request validation and JSON serialization only.
-- **repository/** — All data access and querying logic (filtering, sorting, UUID generation). No HTTP knowledge.
-- **services/** — Thin orchestration layer. Delegates filtering/sorting to repository. Raises domain exceptions (never HTTP exceptions).
-- **api/** — HTTP boundary. Catches domain exceptions and converts them to `HTTPException`. Does not contain business logic.
+- **dtos/** — Pydantic models representing domain data and enums. These are framework-agnostic data carriers.
+- **models/** — Database-specific models (e.g., SQLAlchemy `Base` classes).
+- **schemas/** — Hypermedia-aware Pydantic models (Siren) used for API request validation and JSON serialization.
+- **repository/** — All data access and querying logic (filtering, sorting, pagination, CRUD). Supports multiple backends.
+- **services/** — Thin orchestration layer. Delegates to repository. Raises domain exceptions (never HTTP exceptions).
+- **api/** — HTTP boundary. Catches domain exceptions and converts them to `HTTPException`. Handles Hypermedia response mapping.
 
 ---
 
@@ -120,15 +128,15 @@ Always run all three quality checks before committing.
 - Prefer **descriptive variable names** over comments: `filtered_books` not `result`.
 - Follow all **Clean Code** principles: single responsibility, DRY, small functions, clear names.
 - Use `StrEnum` for enumerations that are also used as string values.
-- Use **dataclasses** for domain model objects, not `TypedDict` or plain dicts.
+- Use **Pydantic BaseModel** for DTO objects, not `TypedDict`, plain dicts, or dataclasses.
 
 ### Architecture Rules
 
 - **Service layer must never import from `fastapi`** (no `HTTPException`, no `status`). Raise plain Python domain exceptions instead.
 - **API layer translates domain exceptions to HTTP exceptions** using `try/except`.
-- **Service layer returns domain objects** (`Book`, `list[Book]`), never schema objects. FastAPI's `response_model` handles serialization.
-- **Filtering and sorting logic belongs in the repository layer**, not in services.
-- **UUID generation belongs in the repository layer** (`add()` method), not in services.
+- **Service layer returns DTO objects** (`Book`, `list[Book]`), never schema objects. FastAPI's `response_model` handles serialization to Siren hypermedia schemas.
+- **Filtering, sorting, and pagination logic belongs in the repository layer**, not in services.
+- **ID generation belongs in the repository layer**, not in services.
 - **Do not use `Query()` wrapper** in FastAPI route function signatures unless you need additional validation parameters (e.g., aliases, metadata). Name parameters directly as you want them to appear in the query string.
 
 ---
@@ -143,7 +151,7 @@ Before writing any code, define the class/function signatures (stubs) for the ne
 
 ```python
 class BookService:
-    async def create_book(self, data: BookCreate) -> BookResponse:
+    async def create_book(self, data: BookCreate) -> Book:
         ...
 ```
 
@@ -167,9 +175,9 @@ Write **all tests before implementing** the production code. Tests must:
 - Use `@pytest.fixture()` for shared setup.
 - Use `@pytest.mark.parametrize` to cover boundary values and multiple input variants.
 - **Do not duplicate tests across layers.** Test each concern at exactly one level:
-  - **Repository**: all filtering, sorting, CRUD edge cases.
-  - **Service**: delegation to repository, UUID generation, domain exception raising.
-  - **API**: HTTP status codes, input validation (422), and domain→HTTP exception mapping.
+  - **Repository**: all filtering, sorting, pagination, and CRUD edge cases.
+  - **Service**: delegation to repository, ID mapping, domain exception raising.
+  - **API**: HTTP status codes, input validation (422), Hypermedia links, and domain→HTTP exception mapping.
 
 ### Step 3 — Implement
 
@@ -182,11 +190,10 @@ Write production code only after all tests exist. Keep implementation clean and 
 - **Do not write `# Arrange`, `# Act`, `# Assert` labels as comments** in tests. Use blank lines to separate sections instead.
 - **Do not put filtering/sorting logic in the service layer** — it belongs in the repository.
 - **Do not raise `HTTPException` in services** — raise domain exceptions (`BookNotFoundError`) and let the API layer convert them.
-- **Do not use `TypedDict` for domain models** — use `@dataclass` for mutable domain objects.
-- **Do not return schema objects from the service layer** — return domain objects and let FastAPI's `response_model` handle serialization.
-- **Do not add constraints on model fields** (e.g., range, min/max, regex) unless explicitly required by the spec.
+- **Do not use `TypedDict` for domain data** — use Pydantic `BaseModel` for DTOs.
+- **Do not return schema objects from the service layer** — return DTO objects and let FastAPI's `response_model` handle serialization.
 - **Do not duplicate business logic tests across layers** — test filtering/sorting in repository tests; test delegation in service tests; test HTTP behavior in API tests.
-- When adding a new field to the domain model, update: model, schema (BookCreate + BookResponse), repository `_SORT_ATTR` mapping (if sortable), service, and all affected tests.
+- When adding a new field, update: DTO, SQLAlchemy model, Mongo model, schemas (BookCreate + BookResponse), repository mappings, service, and all affected tests.
 
 ---
 
