@@ -18,6 +18,11 @@ dependencies = [
     "python-dotenv>=1.0.0",
     "motor",
     "pydantic-mongo",
+    "flask",
+    "flask-restful",
+    "flask-apispec",
+    "marshmallow<4.0.0",
+    "gunicorn>=25.3.0",
 ]
 
 [dependency-groups]

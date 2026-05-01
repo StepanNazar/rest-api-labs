@@ -15,6 +15,35 @@ from app.main import app
 from app.dtos.books import Book, BookStatus, SortField, SortOrder
 from app.repository.book_repository import _SORT_ATTR, BookRepository, Cursor, MongoBookRepository, SQLBookRepository
 from app.services.book_service import BookService
+from app.flask_app.main import create_app as create_flask_app
+
+
+class FlaskTestClientWrapper:
+    def __init__(self, client):
+        self.client = client
+
+    def get(self, url, params=None, **kwargs):
+        return self._wrap_response(self.client.get(url, query_string=params, **kwargs))
+
+    def post(self, url, json=None, **kwargs):
+        return self._wrap_response(self.client.post(url, json=json, **kwargs))
+
+    def delete(self, url, **kwargs):
+        return self._wrap_response(self.client.delete(url, **kwargs))
+
+    def _wrap_response(self, response):
+        class WrappedResponse:
+            def __init__(self, resp):
+                self._resp = resp
+                self.status_code = resp.status_code
+
+            def json(self):
+                return self._resp.get_json()
+
+            def __getattr__(self, name):
+                return getattr(self._resp, name)
+
+        return WrappedResponse(response)
 
 
 class MockBookRepository:
@@ -170,10 +199,14 @@ def service(repository: BookRepository) -> BookService:
     return BookService(repository)
 
 
-@pytest.fixture()
-def client(service: BookService) -> Generator[TestClient, None, None]:
+@pytest.fixture(params=["fastapi", "flask"])
+def client(request, service: BookService) -> Generator[object, None, None]:
     """Return a TestClient with all dependencies overridden to use isolated state."""
-    app.dependency_overrides[get_book_service] = lambda: service
-    app.dependency_overrides[get_sql_book_repository] = lambda: service._repository
-    yield TestClient(app)
-    app.dependency_overrides.clear()
+    if request.param == "fastapi":
+        app.dependency_overrides[get_book_service] = lambda: service
+        yield TestClient(app)
+        app.dependency_overrides.clear()
+    else:
+        flask_app = create_flask_app(service)
+        with flask_app.test_client() as c:
+            yield FlaskTestClientWrapper(c)
