@@ -21,7 +21,7 @@ def create_app(service=None):
             title='Library API',
             version='v1',
             plugins=[MarshmallowPlugin()],
-            openapi_version="3.0.2"
+            openapi_version="2.0"
         ),
         'APISPEC_SWAGGER_URL': '/swagger/',
         'APISPEC_SWAGGER_UI_URL': '/docs/'

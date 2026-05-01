@@ -33,7 +33,7 @@ class BookCreateSchema(Schema):
         dump_default="",
         validate=validate.Length(min=0, max=2000),
     )
-    status = fields.Enum(BookStatus, by_value=True, required=True)
+    status = fields.Enum(BookStatus, required=True, by_value=True)
     publication_year = fields.Integer(required=True)
 
 
@@ -44,7 +44,7 @@ class BookPropertiesSchema(Schema):
     title = fields.String(required=True)
     author = fields.String(required=True)
     description = fields.String(required=True)
-    status = fields.Enum(BookStatus, required=True)
+    status = fields.Enum(BookStatus, required=True, by_value=True)
     publication_year = fields.Integer(required=True)
 
 

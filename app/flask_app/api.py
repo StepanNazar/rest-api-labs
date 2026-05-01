@@ -129,18 +129,24 @@ class BookListResource(MethodResource):
 
 
 class BookResource(MethodResource):
-    @use_kwargs({"book_id": fields.UUID()}, location="view_args")
     @marshal_with(BookResponseSchema)
-    def get(self, book_id, **kwargs):
+    def get(self, book_id):
         service = g.book_service
+        try:
+            book_id = UUID(book_id)
+        except ValueError:
+            abort(422, message="Invalid book ID")
         try:
             book = bridge.run(service.get_book(book_id))
             return {"properties": book.model_dump()}
         except BookNotFoundError as exc:
             abort(404, message=str(exc))
 
-    @use_kwargs({"book_id": fields.UUID()}, location="view_args")
-    def delete(self, book_id, **kwargs):
+    def delete(self, book_id):
         service = g.book_service
+        try:
+            book_id = UUID(book_id)
+        except ValueError:
+            abort(422, message="Invalid book ID")
         bridge.run(service.delete_book(book_id))
         return "", 204
