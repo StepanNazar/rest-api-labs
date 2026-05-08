@@ -1,14 +1,21 @@
 """FastAPI dependency providers for repository and service instances."""
 
-from typing import Annotated
+from typing import Annotated, NoReturn
 
 import motor.motor_asyncio
-from fastapi import Depends
+from fastapi import Depends, HTTPException
+from fastapi import status as http_status
+from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 
 from app.database import get_db, get_mongo_db
+from app.dtos.users import User
 from app.repository.book_repository import BookRepository, MongoBookRepository, SQLBookRepository
+from app.services.auth_service import AuthService, TokenKind
 from app.services.book_service import BookService
+from app.services.exceptions import AuthenticationError
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 
 def get_sql_book_repository(db: Annotated[Session, Depends(get_db)]) -> SQLBookRepository:
@@ -38,3 +45,40 @@ def get_book_service(
         A BookService instance backed by the provided repository.
     """
     return BookService(repository)
+
+
+def get_auth_service() -> AuthService:
+    """Return an AuthService for JWT token handling.
+
+    Returns:
+        AuthService instance.
+    """
+    return AuthService()
+
+
+async def get_current_user(
+    token: Annotated[str, Depends(oauth2_scheme)],
+    auth_service: Annotated[AuthService, Depends(get_auth_service)],
+) -> User:
+    """Return the user identified by a valid access token.
+
+    Args:
+        token: Bearer token extracted from the Authorization header.
+        auth_service: Injected authentication service.
+
+    Returns:
+        The authenticated user.
+
+    Raises:
+        HTTPException: 401 if token validation fails.
+    """
+    try:
+        token_data = auth_service.decode_token(token, expected_kind=TokenKind.ACCESS)
+    except AuthenticationError:
+        raise HTTPException(
+            status_code=http_status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    return User(username=token_data.username)

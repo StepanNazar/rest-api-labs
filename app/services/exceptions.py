@@ -13,3 +13,7 @@ class BookNotFoundError(Exception):
     def __init__(self, book_id: UUID) -> None:
         super().__init__(f"Book with id {book_id} not found")
         self.book_id = book_id
+
+
+class AuthenticationError(Exception):
+    """Raised when authentication credentials or tokens are invalid."""
