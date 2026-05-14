@@ -10,7 +10,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
-from app.dependencies import get_current_user, get_sql_book_repository, get_book_service
+from app.dependencies import get_current_user, get_redis_client, get_sql_book_repository, get_book_service
 from app.dtos.users import User
 from app.main import app
 from app.dtos.books import Book, BookStatus, SortField, SortOrder
@@ -163,6 +163,43 @@ class MockBookRepository:
         self._books.pop(book_id, None)
 
 
+class FakeRedis:
+    """Minimal async Redis sorted-set fake for rate limit tests."""
+
+    def __init__(self) -> None:
+        self._sorted_sets: dict[str, dict[str, int]] = {}
+        self._expirations: dict[str, int] = {}
+
+    async def zremrangebyscore(self, key: str, min: int, max: int) -> int:
+        """Remove sorted-set members whose score is inside the provided range."""
+        sorted_set = self._sorted_sets.get(key, {})
+        expired_members = [
+            member for member, score in sorted_set.items() if min <= score <= max
+        ]
+        for member in expired_members:
+            del sorted_set[member]
+        return len(expired_members)
+
+    async def zcard(self, key: str) -> int:
+        """Return the number of sorted-set members for the key."""
+        return len(self._sorted_sets.get(key, {}))
+
+    async def zadd(self, key: str, mapping: dict[str, int]) -> int:
+        """Add members with scores to a sorted set."""
+        sorted_set = self._sorted_sets.setdefault(key, {})
+        new_members = 0
+        for member, score in mapping.items():
+            if member not in sorted_set:
+                new_members += 1
+            sorted_set[member] = score
+        return new_members
+
+    async def expire(self, key: str, period: int) -> bool:
+        """Store the requested expiration period for the key."""
+        self._expirations[key] = period
+        return True
+
+
 @pytest.fixture()
 def repository() -> MockBookRepository:
     """Return an empty, isolated MockBookRepository for each test."""
@@ -200,12 +237,29 @@ def service(repository: BookRepository) -> BookService:
     return BookService(repository)
 
 
+@pytest.fixture()
+def fake_redis() -> FakeRedis:
+    """Return an isolated fake Redis client."""
+    return FakeRedis()
+
+
+@pytest.fixture()
+def fastapi_client(service: BookService, fake_redis: FakeRedis) -> Generator[TestClient, None, None]:
+    """Return a FastAPI TestClient with isolated service and Redis dependencies."""
+    app.dependency_overrides[get_book_service] = lambda: service
+    app.dependency_overrides[get_current_user] = lambda: User(username="johndoe")
+    app.dependency_overrides[get_redis_client] = lambda: fake_redis
+    yield TestClient(app)
+    app.dependency_overrides.clear()
+
+
 @pytest.fixture(params=["fastapi", "flask"])
-def client(request, service: BookService) -> Generator[object, None, None]:
+def client(request, service: BookService, fake_redis: FakeRedis) -> Generator[object, None, None]:
     """Return a TestClient with all dependencies overridden to use isolated state."""
     if request.param == "fastapi":
         app.dependency_overrides[get_book_service] = lambda: service
         app.dependency_overrides[get_current_user] = lambda: User(username="johndoe")
+        app.dependency_overrides[get_redis_client] = lambda: fake_redis
         yield TestClient(app)
         app.dependency_overrides.clear()
     else:

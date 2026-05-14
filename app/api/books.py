@@ -9,14 +9,14 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi import status as http_status
 from fastapi_hypermodel import SirenResponse, UrlType
 
-from app.dependencies import get_book_service, get_current_user
+from app.dependencies import get_book_service, get_current_user, rate_limit
 from app.dtos.books import BookStatus, SortField, SortOrder, Book
 from app.schemas.book import BookCollectionResponse, BookCreate, BookResponse
 from app.services.book_service import BookService
 from app.services.exceptions import BookNotFoundError
 from app.repository.book_repository import Cursor
 
-router = APIRouter(prefix="/books", tags=["books"], dependencies=[Depends(get_current_user)])
+router = APIRouter(prefix="/books", tags=["books"])
 
 def encode_cursor(data: Cursor | None) -> str | None:
     if data is None:
@@ -41,6 +41,7 @@ def decode_cursor(cursor: str) -> Cursor:
     response_model=BookCollectionResponse,
     status_code=http_status.HTTP_200_OK,
     response_class=SirenResponse,
+    dependencies=[Depends(rate_limit)],
 )
 async def get_books(
     request: Request,
@@ -142,6 +143,7 @@ async def get_books(
     response_model=BookResponse,
     status_code=http_status.HTTP_200_OK,
     response_class=SirenResponse,
+    dependencies=[Depends(rate_limit)],
 )
 async def get_book(
     book_id: UUID,
@@ -173,6 +175,7 @@ async def get_book(
     response_model=BookResponse,
     status_code=http_status.HTTP_201_CREATED,
     response_class=SirenResponse,
+    dependencies=[Depends(rate_limit), Depends(get_current_user)],
 )
 async def create_book(
     payload: BookCreate,
@@ -190,7 +193,11 @@ async def create_book(
     return await service.create_book(payload)
 
 
-@router.delete("/{book_id}", status_code=http_status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{book_id}",
+    status_code=http_status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(rate_limit), Depends(get_current_user)],
+)
 async def delete_book(
     book_id: UUID,
     service: Annotated[BookService, Depends(get_book_service)],
