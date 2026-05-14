@@ -6,41 +6,54 @@ from app.main import app
 
 
 class TestLogin:
-    def test_returns_access_and_refresh_tokens_for_any_credentials(self) -> None:
+    def test_returns_access_token_and_sets_refresh_token_cookie_for_any_credentials(
+        self,
+    ) -> None:
         client = TestClient(app)
 
         response = client.post(
             "/token",
-            data={"username": "johndoe", "password": "secret"},
+            json={"username": "johndoe", "password": "secret"},
         )
 
         assert response.status_code == 200
         body = response.json()
         assert body["token_type"] == "bearer"
         assert isinstance(body["access_token"], str)
-        assert isinstance(body["refresh_token"], str)
-        assert body["access_token"] != body["refresh_token"]
+        assert "refresh_token" not in body
+        assert "refresh_token=" in response.headers["set-cookie"]
+        assert "HttpOnly" in response.headers["set-cookie"]
+        assert "Path=/refresh" in response.headers["set-cookie"]
+
 
 class TestRefreshToken:
-    def test_returns_new_access_token_for_valid_refresh_token(self) -> None:
+    def test_returns_new_access_token_when_refresh_token_cookie_is_valid(self) -> None:
         client = TestClient(app)
-        login_response = client.post(
-            "/token",
-            data={"username": "johndoe", "password": "secret"},
-        )
-        refresh_token = login_response.json()["refresh_token"]
 
-        response = client.post("/refresh", json={"refresh_token": refresh_token})
+        client.post(
+            "/token",
+            json={"username": "johndoe", "password": "secret"},
+        )
+
+        response = client.post("/refresh")
 
         assert response.status_code == 200
         body = response.json()
         assert body["token_type"] == "bearer"
         assert isinstance(body["access_token"], str)
 
-    def test_returns_401_when_refresh_token_is_invalid(self) -> None:
+    def test_returns_401_when_refresh_token_cookie_is_invalid(self) -> None:
+        client = TestClient(app)
+        client.cookies.set("refresh_token", "not-a-token", path="/refresh")
+
+        response = client.post("/refresh")
+
+        assert response.status_code == 401
+
+    def test_returns_401_when_refresh_token_cookie_is_missing(self) -> None:
         client = TestClient(app)
 
-        response = client.post("/refresh", json={"refresh_token": "not-a-token"})
+        response = client.post("/refresh")
 
         assert response.status_code == 401
 

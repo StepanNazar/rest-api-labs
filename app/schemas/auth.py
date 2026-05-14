@@ -4,11 +4,17 @@ from pydantic import BaseModel
 
 
 class Token(BaseModel):
-    """OAuth2 bearer token response containing access and refresh tokens."""
+    """Bearer token response containing the access token."""
 
     access_token: str
-    refresh_token: str
     token_type: str
+
+
+class LoginRequest(BaseModel):
+    """Request body for creating JWT tokens."""
+
+    username: str
+    password: str
 
 
 class AccessToken(BaseModel):
@@ -16,12 +22,6 @@ class AccessToken(BaseModel):
 
     access_token: str
     token_type: str
-
-
-class RefreshTokenRequest(BaseModel):
-    """Request body for exchanging a refresh token for a new access token."""
-
-    refresh_token: str
 
 
 class TokenData(BaseModel):

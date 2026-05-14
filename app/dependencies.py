@@ -1,11 +1,11 @@
 """FastAPI dependency providers for repository and service instances."""
 
-from typing import Annotated, NoReturn
+from typing import Annotated
 
 import motor.motor_asyncio
 from fastapi import Depends, HTTPException
 from fastapi import status as http_status
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
 from app.database import get_db, get_mongo_db
@@ -15,7 +15,7 @@ from app.services.auth_service import AuthService, TokenKind
 from app.services.book_service import BookService
 from app.services.exceptions import AuthenticationError
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+jwt_bearer_scheme = HTTPBearer(auto_error=False)
 
 
 def get_sql_book_repository(db: Annotated[Session, Depends(get_db)]) -> SQLBookRepository:
@@ -57,13 +57,13 @@ def get_auth_service() -> AuthService:
 
 
 async def get_current_user(
-    token: Annotated[str, Depends(oauth2_scheme)],
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(jwt_bearer_scheme)],
     auth_service: Annotated[AuthService, Depends(get_auth_service)],
 ) -> User:
     """Return the user identified by a valid access token.
 
     Args:
-        token: Bearer token extracted from the Authorization header.
+        credentials: Bearer credentials extracted from the Authorization header.
         auth_service: Injected authentication service.
 
     Returns:
@@ -73,7 +73,9 @@ async def get_current_user(
         HTTPException: 401 if token validation fails.
     """
     try:
-        token_data = auth_service.decode_token(token, expected_kind=TokenKind.ACCESS)
+        if credentials is None:
+            raise AuthenticationError
+        token_data = auth_service.decode_token(credentials.credentials, expected_kind=TokenKind.ACCESS)
     except AuthenticationError:
         raise HTTPException(
             status_code=http_status.HTTP_401_UNAUTHORIZED,
