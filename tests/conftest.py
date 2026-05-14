@@ -10,7 +10,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
-from app.dependencies import get_sql_book_repository, get_book_service
+from app.dependencies import get_current_user, get_sql_book_repository, get_book_service
+from app.dtos.users import User
 from app.main import app
 from app.dtos.books import Book, BookStatus, SortField, SortOrder
 from app.repository.book_repository import _SORT_ATTR, BookRepository, Cursor, MongoBookRepository, SQLBookRepository
@@ -204,6 +205,7 @@ def client(request, service: BookService) -> Generator[object, None, None]:
     """Return a TestClient with all dependencies overridden to use isolated state."""
     if request.param == "fastapi":
         app.dependency_overrides[get_book_service] = lambda: service
+        app.dependency_overrides[get_current_user] = lambda: User(username="johndoe")
         yield TestClient(app)
         app.dependency_overrides.clear()
     else:

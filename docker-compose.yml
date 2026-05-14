@@ -19,6 +19,8 @@ services:
   server:
     build: .
     container_name: library-api
+    env_file:
+      - .env
     ports:
       - "8000:8000"
     environment:
@@ -36,6 +38,8 @@ services:
   flask-server:
     build: .
     container_name: library-flask-api
+    env_file:
+      - .env
     ports:
       - "5000:5000"
     environment:

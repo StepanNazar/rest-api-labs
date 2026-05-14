@@ -9,14 +9,14 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi import status as http_status
 from fastapi_hypermodel import SirenResponse, UrlType
 
-from app.dependencies import get_book_service
+from app.dependencies import get_book_service, get_current_user
 from app.dtos.books import BookStatus, SortField, SortOrder, Book
 from app.schemas.book import BookCollectionResponse, BookCreate, BookResponse
 from app.services.book_service import BookService
 from app.services.exceptions import BookNotFoundError
 from app.repository.book_repository import Cursor
 
-router = APIRouter(prefix="/books", tags=["books"])
+router = APIRouter(prefix="/books", tags=["books"], dependencies=[Depends(get_current_user)])
 
 def encode_cursor(data: Cursor | None) -> str | None:
     if data is None:
