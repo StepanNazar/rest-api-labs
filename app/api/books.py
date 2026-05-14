@@ -41,7 +41,6 @@ def decode_cursor(cursor: str) -> Cursor:
     response_model=BookCollectionResponse,
     status_code=http_status.HTTP_200_OK,
     response_class=SirenResponse,
-    dependencies=[Depends(rate_limit)],
 )
 async def get_books(
     request: Request,

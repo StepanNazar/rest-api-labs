@@ -1,4 +1,16 @@
 services:
+  master:
+    image: locustio/locust
+    ports:
+      - "8089:8089"
+    volumes:
+      - ./:/mnt/locust
+    command: -f /mnt/locust/locustfile.py --master -H http://server:8000
+  worker:
+    image: locustio/locust
+    volumes:
+      - ./:/mnt/locust
+    command: -f /mnt/locust/locustfile.py --worker --master-host master
   prism:
     image: stoplight/prism:4
     command: mock -h 0.0.0.0 -d /tmp/api.oas3.yml
