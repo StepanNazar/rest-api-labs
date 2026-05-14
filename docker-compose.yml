@@ -1,4 +1,12 @@
 services:
+  prism:
+    image: stoplight/prism:4
+    command: mock -h 0.0.0.0 -d /tmp/api.oas3.yml
+    volumes:
+      - ./api.oas3.yml:/tmp/api.oas3.yml:ro
+    ports:
+      - "8080:4010"
+
   redis:
     image: redis:latest
     container_name: book-cache
